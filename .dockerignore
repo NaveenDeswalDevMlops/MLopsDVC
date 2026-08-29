@@ -1,18 +1,22 @@
-# Deny everything, then allow only the runtime application, model evidence and
-# deployment metadata. Training-only caches, Git history and local stores stay out.
+# Deny everything, then explicitly allow the files needed by the runtime dashboard.
+# Git history, local DVC stores, virtualenvs and other development-only content stay out.
 *
 !src/
+!src/**
 !configs/
+!configs/**
 !scripts/
+!scripts/**
 !requirements.txt
 !pyproject.toml
-!artifacts/model.pkl
-!artifacts/model_card.md
-!artifacts/metrics/
-!artifacts/plots/
-!artifacts/runs/
+!artifacts/
+!artifacts/**
 !data/
+!data/**
 !docker/
+!docker/**
 !.github/
+!.github/workflows/
+!.github/workflows/**
 **/__pycache__
 **/*.pyc
