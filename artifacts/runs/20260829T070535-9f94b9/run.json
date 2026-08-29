@@ -1,0 +1,42 @@
+{
+  "run_id": "20260829T070535-9f94b9",
+  "run_name": "perf-check",
+  "experiment": "catsdogs",
+  "status": "FINISHED",
+  "started_at": "2026-08-29T07:05:35+00:00",
+  "ended_at": "2026-08-29T07:05:35+00:00",
+  "duration_seconds": 0.094,
+  "params": {
+    "sample_size": "40",
+    "endpoint": "http://127.0.0.1:5001",
+    "threshold": "0.5"
+  },
+  "tags": {
+    "stage": "monitoring",
+    "endpoint": "http://127.0.0.1:5001",
+    "verdict": "PASS"
+  },
+  "metrics": {
+    "live_accuracy": 0.7,
+    "live_precision": 0.6666666666666666,
+    "live_recall": 0.8,
+    "live_f1": 0.7272727272727273,
+    "live_roc_auc": 0.6950000000000001,
+    "live_log_loss": 0.7771097674993953,
+    "live_samples": 40.0,
+    "delta_accuracy": -0.081818,
+    "delta_precision": -0.1,
+    "delta_recall": -0.021429,
+    "delta_f1": -0.065831,
+    "delta_roc_auc": -0.168757,
+    "delta_log_loss": 0.261643,
+    "delta_samples": -15.0,
+    "live_latency_ms_p95": 1.925
+  },
+  "metric_history": {},
+  "artifacts": [
+    "monitoring/perf_check.json"
+  ],
+  "backend": "mlflow+file",
+  "mlflow_run_id": "8c5685699d1a452386356051f8744436"
+}

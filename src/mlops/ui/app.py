@@ -363,7 +363,7 @@ def create_ui_app(config: Config | None = None) -> Flask:
         raw = request.args.get("path", "")
         candidate = (config.root / raw).resolve()
         try:
-            candidate.relative_to(config.root)
+            candidate.resolve().relative_to(Path(config.root).resolve())
         except ValueError:
             return jsonify({"error": "path is outside the project"}), 403
         allowed = {".yaml", ".yml", ".md", ".txt", ".json", ".cfg", ".toml", ""}
@@ -786,7 +786,7 @@ def create_ui_app(config: Config | None = None) -> Flask:
             with archive.open("w", encoding="utf-8") as handle:
                 for record in bundle.records:
                     handle.write(json.dumps(record) + "\n")
-            payload["archive"] = str(archive.relative_to(config.root))
+            payload["archive"] = str(archive.resolve().relative_to(Path(config.root).resolve()))
             payload.pop("records", None)
             return payload
 

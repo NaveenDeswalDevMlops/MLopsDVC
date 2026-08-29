@@ -263,7 +263,7 @@ def run(config: Config, use_mlflow: bool | None = None) -> TrainingResult:
             tracker.log_artifact(artifact, artifact_subdir="training")
 
         result = TrainingResult(
-            model_path=str(model_path.relative_to(config.root)),
+            model_path=str(model_path.resolve().relative_to(Path(config.root).resolve())),
             run_id=tracker.record.run_id,
             epochs_run=epochs_run,
             best_epoch=best_epoch,
@@ -271,8 +271,8 @@ def run(config: Config, use_mlflow: bool | None = None) -> TrainingResult:
             final_metrics=final_metrics,
             duration_seconds=time.perf_counter() - started,
             plots=[
-                str(loss_png.relative_to(config.root)),
-                str(accuracy_png.relative_to(config.root)),
+                str(loss_png.resolve().relative_to(Path(config.root).resolve())),
+                str(accuracy_png.resolve().relative_to(Path(config.root).resolve())),
             ],
         )
 

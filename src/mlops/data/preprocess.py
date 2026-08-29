@@ -289,11 +289,11 @@ def run(config: Config, clean: bool = True) -> dict:
                 continue
             rows.append(
                 ManifestRow(
-                    path=str(destination.relative_to(config.root)),
+                    path=str(destination.resolve().relative_to(Path(config.root).resolve())),
                     split=split,
                     label=label,
                     class_name=class_name,
-                    source=str(source.relative_to(raw_dir)),
+                    source=str(source.resolve().relative_to(Path(raw_dir).resolve())),
                     sha256=digest,
                 )
             )
@@ -317,7 +317,7 @@ def run(config: Config, clean: bool = True) -> dict:
         "total_images": len(rows),
         "skipped": skipped,
         "dataset_digest": dataset_digest(rows),
-        "manifest": str(manifest_path.relative_to(config.root)),
+        "manifest": str(manifest_path.resolve().relative_to(Path(config.root).resolve())),
         "split_ratios": {
             "train": float(config.get("data.split.train", 0.8)),
             "val": float(config.get("data.split.val", 0.1)),

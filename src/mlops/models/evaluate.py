@@ -217,16 +217,16 @@ def run(config: Config, split: str = "test", use_mlflow: bool | None = None) -> 
         class_names=model.classes,
         report=report,
         artifacts=[
-            str(confusion_png.relative_to(config.root)),
-            str(roc_png.relative_to(config.root)),
-            str(report_path.relative_to(config.root)),
+            str(confusion_png.resolve().relative_to(Path(config.root).resolve())),
+            str(roc_png.resolve().relative_to(Path(config.root).resolve())),
+            str(report_path.resolve().relative_to(Path(config.root).resolve())),
         ],
     )
 
     card = build_model_card(config, model, result)
     card_path = config.path("paths.model_card")
     card_path.write_text(card, encoding="utf-8")
-    result.artifacts.append(str(card_path.relative_to(config.root)))
+    result.artifacts.append(str(card_path.resolve().relative_to(Path(config.root).resolve())))
 
     baseline = {
         "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -240,7 +240,7 @@ def run(config: Config, split: str = "test", use_mlflow: bool | None = None) -> 
     }
     baseline_path = config.path("paths.baseline_path")
     baseline_path.write_text(json.dumps(baseline, indent=2), encoding="utf-8")
-    result.artifacts.append(str(baseline_path.relative_to(config.root)))
+    result.artifacts.append(str(baseline_path.resolve().relative_to(Path(config.root).resolve())))
 
     with Tracker(
         config,

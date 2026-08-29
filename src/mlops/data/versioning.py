@@ -166,13 +166,15 @@ def write_dataset_lock(config: Config) -> dict[str, Any]:
     lock = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "raw": {
-            "path": str(raw_dir.relative_to(config.root)) if raw_dir.exists() else str(raw_dir),
+            "path": str(raw_dir.resolve().relative_to(Path(config.root).resolve()))
+            if raw_dir.exists()
+            else str(raw_dir),
             "files": len(raw_entries),
             "bytes": sum(entry["bytes"] for entry in raw_entries),
             "digest": raw_digest,
         },
         "processed": {
-            "path": str(processed_dir.relative_to(config.root))
+            "path": str(processed_dir.resolve().relative_to(Path(config.root).resolve()))
             if processed_dir.exists()
             else str(processed_dir),
             "files": len(processed_entries),

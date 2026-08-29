@@ -1,0 +1,69 @@
+{
+  "checked_at": "2026-08-29T06:23:01+00:00",
+  "endpoint": "http://127.0.0.1:8000",
+  "sample_size": 40,
+  "requested": 40,
+  "metrics": {
+    "accuracy": 0.5,
+    "precision": 0.5,
+    "recall": 0.65,
+    "f1": 0.5652173913043478,
+    "roc_auc": 0.435,
+    "log_loss": 0.7049999102674631,
+    "samples": 40.0
+  },
+  "baseline_metrics": {
+    "accuracy": 0.7818181818181819,
+    "precision": 0.7666666666666667,
+    "recall": 0.8214285714285714,
+    "f1": 0.7931034482758621,
+    "roc_auc": 0.8637566137566137,
+    "log_loss": 0.5154667450902906,
+    "samples": 55.0
+  },
+  "deltas": {
+    "accuracy": -0.281818,
+    "precision": -0.266667,
+    "recall": -0.171429,
+    "f1": -0.227886,
+    "roc_auc": -0.428757,
+    "log_loss": 0.189533,
+    "samples": -15.0
+  },
+  "confusion_matrix": [
+    [
+      7,
+      13
+    ],
+    [
+      7,
+      13
+    ]
+  ],
+  "latency_ms": {
+    "mean": 9.416,
+    "p50": 8.305,
+    "p95": 11.707,
+    "max": 38.933
+  },
+  "failures": [],
+  "gates": [
+    {
+      "name": "absolute_accuracy",
+      "detail": "live accuracy 0.5000 >= floor 0.7000",
+      "passed": false
+    },
+    {
+      "name": "accuracy_drop_vs_baseline",
+      "detail": "drop 0.2818 <= allowed 0.1000",
+      "passed": false
+    },
+    {
+      "name": "request_success",
+      "detail": "40/40 requests returned a prediction",
+      "passed": true
+    }
+  ],
+  "passed": false,
+  "model_version": "dev-local"
+}

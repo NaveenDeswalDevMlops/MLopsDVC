@@ -1,13 +1,13 @@
 {
-  "decided_at": "2026-08-29T06:03:25+00:00",
+  "decided_at": "2026-08-29T06:31:19+00:00",
   "threshold": 0.75,
   "registered_model_name": "catsdogs-classifier",
   "promoted": true,
   "reason": "accuracy 0.7818 >= threshold 0.7500",
-  "run_id": "20260829T060323-5a7f27",
+  "run_id": "20260829T063116-3e8bed",
   "accuracy": 0.7818181818181819,
-  "checkpoint_id": "0685c22a5e72",
+  "checkpoint_id": "dfe30a9ab60e",
   "checkpoint_matches_run": true,
   "mlflow_registered": true,
-  "run_checkpoint_id": "0685c22a5e72"
+  "run_checkpoint_id": "dfe30a9ab60e"
 }
