@@ -717,8 +717,9 @@ def create_ui_app(config: Config | None = None) -> Flask:
             "status": ["status"],
             "repro": ["repro", "--force"],
             "dag": ["dag", "--dot"],
-            "init": ["init", "--no-scm", "--force"],
-            "add-raw": ["add", "data/raw"],
+            # No "add": every data path is a dvc.yaml stage output, and DVC
+            # rejects a path that is both a pipeline output and a manual add.
+            "commit": ["commit", "--force"],
             "push": ["push"],
             "pull": ["pull"],
         }

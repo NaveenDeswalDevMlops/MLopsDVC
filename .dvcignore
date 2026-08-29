@@ -1,7 +1,13 @@
 # Paths DVC should not walk.
+#
+# `artifacts/` as a whole must NOT be listed here: dvc.yaml declares metrics,
+# plots, the checkpoint and the model card underneath it, and DVC refuses to
+# create an output that its own ignore file excludes. Only the run store — which
+# is not a pipeline output — is ignored.
 .git/
 .github/
-artifacts/
+.venv/
 logs/
 mlruns/
+artifacts/runs/
 **/__pycache__/

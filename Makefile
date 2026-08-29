@@ -23,7 +23,7 @@ PER_CLASS   ?= 300
 
 .PHONY: help install clean-venv data data-kaggle preprocess train evaluate promote pipeline \
         serve-api serve-ui stop test lint dvc-init dvc-repro dvc-status dataset-lock \
-        perf-check smoke docker-build docker-run compose-up compose-down dvc-track mlflow-ui \
+        perf-check smoke docker-build docker-run compose-up compose-down dvc-commit mlflow-ui \
         minikube-up k8s-deploy k8s-urls k8s-smoke k8s-logs k8s-delete clean status demo
 
 help: ## Show this help
@@ -40,9 +40,9 @@ $(VENV)/bin/activate: requirements.txt requirements-dev.txt
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements-dev.txt
 	@touch $(VENV)/bin/activate
+	@echo "Environment ready. Next: make demo"
 
 install: $(VENV)/bin/activate ## Create the virtualenv and install dependencies
-	@echo "Environment ready. Next: make demo"
 
 clean-venv: ## Remove the virtualenv
 	rm -rf $(VENV)
@@ -134,16 +134,25 @@ dvc-init: install ## Initialise the DVC repository (run `git init` first if you 
 		$(BIN)/dvc init --no-scm --force; \
 	fi
 	$(BIN)/dvc remote add -d -f localstore .dvcstore
-	@echo "DVC ready. Next: make dvc-track (version the data) or make dvc-repro."
+	@echo "DVC ready."
+	@echo "  make dvc-repro    run the pipeline through DVC (produces dvc.lock)"
+	@echo "  make dvc-commit   record outputs you already built, without re-running"
 
-dvc-track: install ## Put the raw dataset under DVC control and push it to the remote
-	$(BIN)/dvc add data/raw
+dvc-commit: install ## Record already-produced pipeline outputs in DVC, then push
+	@# NOT `dvc add`: every data path here is declared as a stage output in
+	@# dvc.yaml, and DVC refuses to let a path be both a pipeline output and a
+	@# manually added one. `dvc commit` records the outputs that already exist on
+	@# disk without re-running the stages that made them.
+	$(BIN)/dvc commit --force
 	$(BIN)/dvc push
 	@echo ""
-	@echo "data/raw.dvc now holds the content hash — commit it to Git."
+	@echo "dvc.lock now holds the content hashes — commit it to Git."
 
-dvc-repro: install ## Reproduce any stale pipeline stage
+dvc-repro: install ## Reproduce any stale pipeline stage (writes dvc.lock)
 	$(BIN)/dvc repro
+	$(BIN)/dvc push
+	@echo ""
+	@echo "dvc.lock records the hash of every input and output — commit it to Git."
 
 dvc-status: install ## Show which stages are stale
 	$(BIN)/dvc status

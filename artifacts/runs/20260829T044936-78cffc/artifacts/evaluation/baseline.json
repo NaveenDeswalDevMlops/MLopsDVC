@@ -1,0 +1,59 @@
+{
+  "evaluated_at": "2026-08-29T04:49:36+00:00",
+  "split": "test",
+  "threshold": 0.5,
+  "metrics": {
+    "accuracy": 0.5636363636363636,
+    "precision": 0.5588235294117647,
+    "recall": 0.6785714285714286,
+    "f1": 0.6129032258064516,
+    "roc_auc": 0.6917989417989417,
+    "log_loss": 3.674267201145056,
+    "samples": 55.0
+  },
+  "confusion_matrix": [
+    [
+      12,
+      15
+    ],
+    [
+      9,
+      19
+    ]
+  ],
+  "class_names": [
+    "cat",
+    "dog"
+  ],
+  "model": {
+    "model_type": "mlp",
+    "feature_size": 24,
+    "n_features": 1728,
+    "image_size": 224,
+    "class_names": [
+      "cat",
+      "dog"
+    ],
+    "threshold": 0.5,
+    "seed": 42,
+    "trained_at": "2026-08-29T04:49:35+00:00",
+    "dataset_digest": "6fd7ebf8d3136103a5e7325290637391f91a42c166efe59887d6a25be4df6622",
+    "train_samples": 958,
+    "epochs": 5,
+    "params": {
+      "hidden_layer_sizes": "(128, 64)",
+      "alpha": "0.0006",
+      "learning_rate_init": "0.02",
+      "random_state": "42"
+    },
+    "versions": {
+      "python": "3.12.3",
+      "numpy": "2.4.4",
+      "scikit-learn": "1.8.0",
+      "joblib": "1.5.3",
+      "platform": "Linux-6.18.44-fc-v22-x86_64-with-glibc2.39"
+    },
+    "git_sha": ""
+  },
+  "duration_seconds": 0.227
+}

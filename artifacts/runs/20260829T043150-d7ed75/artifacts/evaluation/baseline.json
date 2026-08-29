@@ -1,0 +1,63 @@
+{
+  "evaluated_at": "2026-08-29T04:31:50+00:00",
+  "split": "test",
+  "threshold": 0.5,
+  "metrics": {
+    "accuracy": 0.7647058823529411,
+    "precision": 0.7777777777777778,
+    "recall": 0.7777777777777778,
+    "f1": 0.7777777777777778,
+    "roc_auc": 0.8611111111111112,
+    "log_loss": 0.6680188294403124,
+    "samples": 17.0
+  },
+  "confusion_matrix": [
+    [
+      6,
+      2
+    ],
+    [
+      2,
+      7
+    ]
+  ],
+  "class_names": [
+    "cat",
+    "dog"
+  ],
+  "model": {
+    "model_type": "logreg",
+    "feature_size": 24,
+    "n_features": 1728,
+    "image_size": 224,
+    "class_names": [
+      "cat",
+      "dog"
+    ],
+    "threshold": 0.5,
+    "seed": 42,
+    "trained_at": "2026-08-29T04:31:49+00:00",
+    "dataset_digest": "9f5281f8f424b120309d458c18c8813a9ef724aa55241144a4ceb5808bdb0040",
+    "train_samples": 186,
+    "epochs": 6,
+    "params": {
+      "loss": "log_loss",
+      "alpha": "0.05",
+      "penalty": "l2",
+      "learning_rate": "invscaling",
+      "eta0": "0.02",
+      "power_t": "0.3",
+      "average": "True",
+      "random_state": "42"
+    },
+    "versions": {
+      "python": "3.12.3",
+      "numpy": "2.4.4",
+      "scikit-learn": "1.8.0",
+      "joblib": "1.5.3",
+      "platform": "Linux-6.18.44-fc-v22-x86_64-with-glibc2.39"
+    },
+    "git_sha": ""
+  },
+  "duration_seconds": 0.172
+}

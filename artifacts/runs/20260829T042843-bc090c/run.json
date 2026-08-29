@@ -1,0 +1,254 @@
+{
+  "run_id": "20260829T042843-bc090c",
+  "run_name": "train",
+  "experiment": "catsdogs",
+  "status": "FINISHED",
+  "started_at": "2026-08-29T04:28:43+00:00",
+  "ended_at": "2026-08-29T04:28:44+00:00",
+  "duration_seconds": 0.451,
+  "params": {
+    "project.name": "mlops-catsdogs",
+    "project.version": "1.0.0",
+    "project.seed": "42",
+    "paths.data_root": "data",
+    "paths.raw_dir": "data/raw",
+    "paths.processed_dir": "data/processed",
+    "paths.manifest_csv": "data/processed/manifest.csv",
+    "paths.dataset_lock": "data/dataset.lock.json",
+    "paths.artifacts_dir": "artifacts",
+    "paths.model_path": "artifacts/model.pkl",
+    "paths.metrics_dir": "artifacts/metrics",
+    "paths.plots_dir": "artifacts/plots",
+    "paths.baseline_path": "artifacts/metrics/baseline.json",
+    "paths.history_path": "artifacts/metrics/history.json",
+    "paths.preprocess_stats": "artifacts/metrics/preprocess_stats.json",
+    "paths.perf_report": "artifacts/metrics/perf_check.json",
+    "paths.model_card": "artifacts/model_card.md",
+    "paths.runs_dir": "artifacts/runs",
+    "paths.logs_dir": "logs",
+    "data.class_names": "[\"cat\", \"dog\"]",
+    "data.image_size": "224",
+    "data.channels": "3",
+    "data.jpeg_quality": "92",
+    "data.images_per_class": "300",
+    "data.split.train": "0.8",
+    "data.split.val": "0.1",
+    "data.split.test": "0.1",
+    "data.split.hash_salt": "catsdogs-v1",
+    "data.augmentation.enabled": "True",
+    "data.augmentation.horizontal_flip": "True",
+    "data.augmentation.rotation_degrees": "12",
+    "data.augmentation.brightness": "0.2",
+    "data.augmentation.contrast": "0.2",
+    "data.augmentation.multiplier": "2",
+    "model.type": "logreg",
+    "model.feature_size": "40",
+    "model.logreg.alpha": "0.0005",
+    "model.logreg.penalty": "l2",
+    "model.mlp.hidden_layer_sizes": "[128, 64]",
+    "model.mlp.alpha": "0.0006",
+    "training.epochs": "24",
+    "training.batch_fraction": "0.35",
+    "training.learning_rate": "0.02",
+    "training.early_stopping.enabled": "True",
+    "training.early_stopping.patience": "6",
+    "training.early_stopping.min_delta": "0.001",
+    "evaluation.threshold": "0.5",
+    "logging.level": "INFO",
+    "deployment.image": "mlops-catsdogs:local",
+    "deployment.api_service": "catsdogs-api",
+    "deployment.ui_service": "catsdogs-ui",
+    "tracking.backend": "auto",
+    "tracking.experiment_name": "catsdogs",
+    "tracking.registered_model_name": "catsdogs-classifier",
+    "tracking.mlflow_tracking_uri": "file:./mlruns",
+    "tracking.promote_min_accuracy": "0.75",
+    "serving.host": "0.0.0.0",
+    "serving.port": "8000",
+    "serving.model_version": "local",
+    "serving.max_upload_bytes": "5242880",
+    "serving.metrics_path": "/metrics",
+    "serving.latency_buckets": "[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5]",
+    "ui.host": "0.0.0.0",
+    "ui.port": "8501",
+    "ui.api_url": "http://127.0.0.1:8000",
+    "ui.refresh_seconds": "5",
+    "monitoring.log_file": "logs/service.jsonl",
+    "monitoring.ui_log_file": "logs/ui.jsonl",
+    "monitoring.log_tail_lines": "300",
+    "monitoring.perf_check.sample_size": "40",
+    "monitoring.perf_check.min_accuracy": "0.7",
+    "monitoring.perf_check.max_accuracy_drop": "0.1",
+    "monitoring.kubernetes.enabled": "True",
+    "monitoring.kubernetes.namespace": "mlops",
+    "monitoring.kubernetes.label_selector": "app.kubernetes.io/part-of=mlops-catsdogs",
+    "monitoring.kubernetes.tail_lines": "200",
+    "monitoring.kubernetes.kubectl_binary": "kubectl",
+    "monitoring.kubernetes.context": "minikube",
+    "train_rows": "958",
+    "val_rows": "66",
+    "n_features": "4800"
+  },
+  "tags": {
+    "stage": "train",
+    "model_type": "logreg",
+    "dataset_digest": "6fd7ebf8d3136103",
+    "git_sha": "",
+    "best_epoch": "2",
+    "model_path": "/home/claude/build/mlops-catsdogs/artifacts/model.pkl"
+  },
+  "metrics": {
+    "train_loss": 4.864437916857278,
+    "train_accuracy": 0.7693110647181628,
+    "val_loss": 4.786488003449577,
+    "val_accuracy": 0.803030303030303,
+    "best_epoch": 2.0,
+    "epochs_run": 8.0
+  },
+  "metric_history": {
+    "train_loss": [
+      {
+        "step": 1.0,
+        "value": 8.399773862359583
+      },
+      {
+        "step": 2.0,
+        "value": 4.864437916857278
+      },
+      {
+        "step": 3.0,
+        "value": 3.684743003221372
+      },
+      {
+        "step": 4.0,
+        "value": 4.503729900434145
+      },
+      {
+        "step": 5.0,
+        "value": 5.639581956053897
+      },
+      {
+        "step": 6.0,
+        "value": 6.558422178028738
+      },
+      {
+        "step": 7.0,
+        "value": 4.755199564405137
+      },
+      {
+        "step": 8.0,
+        "value": 6.1726449141155095
+      }
+    ],
+    "train_accuracy": [
+      {
+        "step": 1.0,
+        "value": 0.6816283924843424
+      },
+      {
+        "step": 2.0,
+        "value": 0.7693110647181628
+      },
+      {
+        "step": 3.0,
+        "value": 0.7964509394572025
+      },
+      {
+        "step": 4.0,
+        "value": 0.7901878914405011
+      },
+      {
+        "step": 5.0,
+        "value": 0.7651356993736952
+      },
+      {
+        "step": 6.0,
+        "value": 0.7620041753653445
+      },
+      {
+        "step": 7.0,
+        "value": 0.7870563674321504
+      },
+      {
+        "step": 8.0,
+        "value": 0.7567849686847599
+      }
+    ],
+    "val_loss": [
+      {
+        "step": 1.0,
+        "value": 8.054137246811305
+      },
+      {
+        "step": 2.0,
+        "value": 4.786488003449577
+      },
+      {
+        "step": 3.0,
+        "value": 5.238418244130904
+      },
+      {
+        "step": 4.0,
+        "value": 5.743367375178417
+      },
+      {
+        "step": 5.0,
+        "value": 5.442467243884816
+      },
+      {
+        "step": 6.0,
+        "value": 7.474734622099546
+      },
+      {
+        "step": 7.0,
+        "value": 5.981766702129504
+      },
+      {
+        "step": 8.0,
+        "value": 5.863357249205209
+      }
+    ],
+    "val_accuracy": [
+      {
+        "step": 1.0,
+        "value": 0.6818181818181818
+      },
+      {
+        "step": 2.0,
+        "value": 0.803030303030303
+      },
+      {
+        "step": 3.0,
+        "value": 0.803030303030303
+      },
+      {
+        "step": 4.0,
+        "value": 0.7878787878787878
+      },
+      {
+        "step": 5.0,
+        "value": 0.7727272727272727
+      },
+      {
+        "step": 6.0,
+        "value": 0.7575757575757576
+      },
+      {
+        "step": 7.0,
+        "value": 0.7272727272727273
+      },
+      {
+        "step": 8.0,
+        "value": 0.7727272727272727
+      }
+    ]
+  },
+  "artifacts": [
+    "training/loss_curve.png",
+    "training/accuracy_curve.png",
+    "training/history.json",
+    "training/model.pkl"
+  ],
+  "backend": "file",
+  "mlflow_run_id": ""
+}

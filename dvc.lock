@@ -1,0 +1,138 @@
+schema: '2.0'
+stages:
+  generate_data:
+    cmd: python -m mlops.cli generate-data
+    deps:
+    - path: src/mlops/data/generate.py
+      hash: md5
+      md5: 0239294946d8938c2957588e71b7f3a5
+      size: 10651
+    params:
+      params.yaml:
+        data.images_per_class: 300
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: 85267e26a98547b7a5089684015ea1cb.dir
+      size: 7816632
+      nfiles: 600
+  preprocess:
+    cmd: python -m mlops.cli preprocess
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: 85267e26a98547b7a5089684015ea1cb.dir
+      size: 7816632
+      nfiles: 600
+    - path: src/mlops/data/preprocess.py
+      hash: md5
+      md5: 91e413ba80e75a72fcd2e086df77a086
+      size: 11939
+    - path: src/mlops/data/versioning.py
+      hash: md5
+      md5: e878a87033d545b10a34b911116db50d
+      size: 9157
+    params:
+      params.yaml:
+        data.image_size: 224
+        data.split.test: 0.1
+        data.split.train: 0.8
+        data.split.val: 0.1
+    outs:
+    - path: artifacts/metrics/preprocess_stats.json
+      hash: md5
+      md5: ebe55ed2b5c861b5589b697c9ddbe1c4
+      size: 599
+    - path: data/dataset.lock.json
+      hash: md5
+      md5: a9cd792030e12a3491baee306e8636c9
+      size: 473
+    - path: data/processed
+      hash: md5
+      md5: 3af6f691857ba335fbf3e7d6e20ace4b.dir
+      size: 14369928
+      nfiles: 601
+  train:
+    cmd: python -m mlops.cli train
+    deps:
+    - path: data/processed
+      hash: md5
+      md5: 3af6f691857ba335fbf3e7d6e20ace4b.dir
+      size: 14369928
+      nfiles: 601
+    - path: src/mlops/data/dataset.py
+      hash: md5
+      md5: 39b548edc343630ca04b8c9aaef750c9
+      size: 6755
+    - path: src/mlops/models/model.py
+      hash: md5
+      md5: 16206a4c277b6c2b6583d0d0552ffa3d
+      size: 12366
+    - path: src/mlops/models/train.py
+      hash: md5
+      md5: 3fb4f5ee32afd21471659ee9c478c6e5
+      size: 9933
+    params:
+      params.yaml:
+        model.feature_size: 24
+        model.type: logreg
+        training.batch_fraction: 0.5
+        training.epochs: 30
+        training.learning_rate: 0.02
+    outs:
+    - path: artifacts/metrics/history.json
+      hash: md5
+      md5: 346900aead64ce66e3f5ac744f836350
+      size: 1244
+    - path: artifacts/model.pkl
+      hash: md5
+      md5: d1518578d7db0a05c1b908157b78feda
+      size: 64573
+    - path: artifacts/plots/accuracy_curve.png
+      hash: md5
+      md5: fb53103f1fb7c3c9a6f76e427a97a7eb
+      size: 25120
+    - path: artifacts/plots/loss_curve.png
+      hash: md5
+      md5: 93b200525796bdaba27df92b4550a594
+      size: 43032
+  evaluate:
+    cmd: python -m mlops.cli evaluate
+    deps:
+    - path: artifacts/model.pkl
+      hash: md5
+      md5: d1518578d7db0a05c1b908157b78feda
+      size: 64573
+    - path: data/processed
+      hash: md5
+      md5: 3af6f691857ba335fbf3e7d6e20ace4b.dir
+      size: 14369928
+      nfiles: 601
+    - path: src/mlops/models/evaluate.py
+      hash: md5
+      md5: d1bfd2d8234f572f318594d65a3200d0
+      size: 9406
+    params:
+      params.yaml:
+        evaluation.threshold: 0.5
+    outs:
+    - path: artifacts/metrics/baseline.json
+      hash: md5
+      md5: f4ff7fd0b7396e696f60aa4dc0bb66ee
+      size: 1352
+    - path: artifacts/metrics/classification_report.txt
+      hash: md5
+      md5: b38c5d5665a2f737ec4bbc3a6b728fa3
+      size: 326
+    - path: artifacts/model_card.md
+      hash: md5
+      md5: 0bd9796cce7ab96564cc840faf171f3d
+      size: 1406
+    - path: artifacts/plots/confusion_matrix.png
+      hash: md5
+      md5: fb680d15e680eca4c764a4589608e1ce
+      size: 22096
+    - path: artifacts/plots/roc_curve.png
+      hash: md5
+      md5: 1d9458b0f01073d922032fa75c09422b
+      size: 35565
