@@ -32,6 +32,8 @@ jobs:
         github.event_name == 'workflow_dispatch'
       }}
     runs-on: [self-hosted, macOS]
+    environment:
+      name: macbook-docker
 
     steps:
       - name: Checkout repository
@@ -57,6 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Runner: $(hostname)"
+          echo "Architecture: $(uname -m)"
           echo "Working directory: $PWD"
           docker version
           docker compose version
@@ -77,24 +80,14 @@ jobs:
           set -euo pipefail
           docker pull "$IMAGE"
 
-      - name: Deploy with Docker Compose
+      - name: Deploy immutable CI image with Docker Compose
         shell: bash
-        env:
-          DEPLOY_DIR: ${{ secrets.NAVEEN_COMPOSE_DIR }}
         run: |
           set -euo pipefail
-          DEPLOY_DIR="${DEPLOY_DIR:-$HOME/mlops-catsdogs}"
-          echo "Deploy directory: $DEPLOY_DIR"
-          test -d "$DEPLOY_DIR"
-          cd "$DEPLOY_DIR"
-
-          # Compose must use the exact image built by CI.
-          export IMAGE="$IMAGE"
-          export TAG="$TAG"
-
-          docker compose -f docker/docker-compose.yml down --remove-orphans || true
-          docker compose -f docker/docker-compose.yml up -d --no-build --remove-orphans
-          docker compose -f docker/docker-compose.yml ps
+          export IMAGE TAG
+          docker compose -f docker/docker-compose.deploy.yml down --remove-orphans || true
+          docker compose -f docker/docker-compose.deploy.yml up -d --no-build --remove-orphans
+          docker compose -f docker/docker-compose.deploy.yml ps
 
       - name: Wait for service health
         shell: bash
@@ -107,20 +100,39 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/smoke_test.sh http://127.0.0.1:8000
+          curl -fsS http://127.0.0.1:8501/ > /dev/null
+
+      - name: Verify self-contained dashboard evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec mlops-catsdogs-ui-1 python -c "from pathlib import Path; required=['/app/artifacts/model.pkl','/app/artifacts/metrics/history.json','/app/artifacts/metrics/baseline.json','/app/artifacts/metrics/promotion.json','/app/artifacts/model_card.md','/app/docker/docker-compose.yml','/app/.github/workflows/ci.yml','/app/.github/workflows/cd.yml']; missing=[p for p in required if not Path(p).exists()]; raise SystemExit('Missing: '+', '.join(missing) if missing else 0)"
+
+      - name: Write deployment summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## MacBook Docker Deployment"
+            echo ""
+            echo "- **Environment:** macbook-docker"
+            echo "- **Image:** \`$IMAGE\`"
+            echo "- **Architecture:** $(uname -m)"
+            echo "- **API:** http://localhost:8000"
+            echo "- **UI:** http://localhost:8501"
+            echo "- **Model checkpoint:** /app/artifacts/model.pkl"
+            echo "- **Dashboard evidence:** history, promotion, plots, run records, CI/CD and Docker manifests baked into image"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect deployment logs
         if: always()
         shell: bash
-        env:
-          DEPLOY_DIR: ${{ secrets.NAVEEN_COMPOSE_DIR }}
         run: |
           set -euo pipefail
-          DEPLOY_DIR="${DEPLOY_DIR:-$HOME/mlops-catsdogs}"
-          mkdir -p "$GITHUB_WORKSPACE/deploy-logs"
-          cd "$DEPLOY_DIR" || true
-          docker compose -f docker/docker-compose.yml ps > "$GITHUB_WORKSPACE/deploy-logs/ps.txt" 2>&1 || true
-          docker compose -f docker/docker-compose.yml logs --no-color --tail=500 > "$GITHUB_WORKSPACE/deploy-logs/compose-logs.txt" 2>&1 || true
-          tail -40 "$GITHUB_WORKSPACE/deploy-logs/compose-logs.txt" || true
+          mkdir -p deploy-logs
+          docker compose -f docker/docker-compose.deploy.yml ps > deploy-logs/ps.txt 2>&1 || true
+          docker compose -f docker/docker-compose.deploy.yml logs --no-color --tail=500 > deploy-logs/compose-logs.txt 2>&1 || true
+          tail -40 deploy-logs/compose-logs.txt || true
 
       - name: Upload deployment evidence
         if: always()
@@ -134,10 +146,5 @@ jobs:
 # - GitHub Actions runner labels must include: self-hosted, macOS
 # - Docker Desktop must be running
 # - Runner user must be able to run docker/docker compose without sudo
-# - NAVEEN_COMPOSE_DIR should point to the checked-out repository on the MacBook
-#   (or omit it to use ~/mlops-catsdogs)
-# - GHCR_PAT is only needed if the GHCR package is private and GITHUB_TOKEN
-#   cannot read it; give it read:packages permission.
-# - docker/docker-compose.yml should use the IMAGE variable, e.g.:
-#     image: ${IMAGE:-mlops-catsdogs:local}
-#   and should not build the deployment service when CD uses --no-build.
+# - No SSH is required: this job executes directly on the MacBook self-hosted runner.
+# - GHCR_PAT is only needed if the package is private and GITHUB_TOKEN cannot read it.
