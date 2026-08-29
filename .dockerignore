@@ -1,5 +1,5 @@
-# Deny everything, then allow only what the image needs. An allow-list keeps a
-# stray virtualenv or dataset out of the build context by default.
+# Deny everything, then allow only the runtime application, model evidence and
+# deployment metadata. Training-only caches, Git history and local stores stay out.
 *
 !src/
 !configs/
@@ -7,7 +7,12 @@
 !requirements.txt
 !pyproject.toml
 !artifacts/model.pkl
-!artifacts/metrics/baseline.json
 !artifacts/model_card.md
+!artifacts/metrics/
+!artifacts/plots/
+!artifacts/runs/
+!data/
+!docker/
+!.github/
 **/__pycache__
 **/*.pyc
