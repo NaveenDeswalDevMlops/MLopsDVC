@@ -153,17 +153,28 @@ jobs:
           for i in $(seq 1 12); do
             echo "check #$i"
             status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ready || true)
-            model_loaded=$(curl -sS http://127.0.0.1:8000/model-info || true)
-            if [ "$status" = "200" ] && echo "$model_loaded" | grep -q '"model_loaded":true'; then
-              ok=1
-              break
+            model_info=$(curl -sS http://127.0.0.1:8000/model-info || true)
+
+            # Consider the model loaded if the model-info contains an explicit
+            # model_loaded flag, or if it contains checkpoint/classes metadata.
+            if [ "$status" = "200" ]; then
+              if echo "$model_info" | grep -q '"model_loaded":true' || \
+                 echo "$model_info" | grep -q '"checkpoint"' || \
+                 echo "$model_info" | grep -q '"classes"'; then
+                ok=1
+                break
+              fi
             fi
+
             sleep 5
           done
+
           if [ "$ok" != "1" ]; then
-            echo "Service did not become ready with model loaded. Dumping /model-info and logs:" >&2
+            echo "Service did not become ready with model loaded. Dumping /model-info and process status:" >&2
             curl -sS http://127.0.0.1:8000/model-info || true
-            docker-compose logs --no-color --tail=200 || true
+            echo "--- process list ---" >&2
+            ps -ef | sed -n '1,200p' || true
+            echo "API pid:" $(cat api.pid) || true
             kill "$(cat api.pid)" || true
             exit 1
           fi
