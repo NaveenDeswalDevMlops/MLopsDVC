@@ -2,7 +2,7 @@ name: CD (Deploy on macbook)
 
 on:
   push:
-    branches: [main]-l
+    branches: [main-l]
     paths:
       - "src/**"
       - "docker/**"
