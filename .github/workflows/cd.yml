@@ -1,3 +1,4 @@
+
 name: CD (Compose)
 
 on:
@@ -50,11 +51,11 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      - name: Install dependencies
-        if: ${{ steps.image.outputs.is_local == 'true' }}
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      # - name: Install dependencies
+      #   if: ${{ steps.image.outputs.is_local == 'true' }}
+      #   run: |
+      #     python -m pip install --upgrade pip
+      #     pip install -r requirements.txt
       - name: Determine image to deploy
         id: image
         run: |
@@ -150,27 +151,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build and push image to GHCR
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: docker/Dockerfile
-          push: true
-          tags: ghcr.io/${{ toLower(github.repository_owner) }}/${{ env.IMAGE }}:${{ env.TAG }}
-
-      - name: Deploy on naveen-macbook-air (local runner)
-        env:
-          IMAGE: ghcr.io/${{ toLower(github.repository_owner) }}/${{ env.IMAGE }}:${{ env.TAG }}
+      - name: Build image (no push)
         run: |
           set -euo pipefail
-          echo "Pulling $IMAGE"
+          docker build -t mlops-catsdogs:local -f docker/Dockerfile .
+
+      - name: Deploy on naveen-macbook-air (local runner)
+        run: |
+          set -euo pipefail
+          OWNER="${{ github.repository_owner }}"
+          OWNER_LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/$OWNER_LOWER/${{ env.IMAGE }}:${{ env.TAG }}
+          echo "IMAGE=$IMAGE"
           if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
             echo "Logging into ghcr.io"
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ toLower(github.repository_owner) }}" --password-stdin || true
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "$OWNER_LOWER" --password-stdin || true
           fi
-          docker pull "$IMAGE" || true
-          echo "Tagging to mlops-catsdogs:local for Compose"
-          docker tag "$IMAGE" mlops-catsdogs:local || true
+          if [ "${{ env.TAG }}" != "local" ]; then
+            echo "Tagging and pushing $IMAGE"
+            docker tag mlops-catsdogs:local "$IMAGE" || true
+            docker push "$IMAGE" || true
+            docker pull "$IMAGE" || true
+            docker tag "$IMAGE" mlops-catsdogs:local || true
+          else
+            echo "Using local image"
+          fi
           DEPLOY_DIR="${{ secrets.NAVEEN_COMPOSE_DIR }}"
           if [ -z "$DEPLOY_DIR" ]; then
             DEPLOY_DIR=~/mlops-catsdogs
