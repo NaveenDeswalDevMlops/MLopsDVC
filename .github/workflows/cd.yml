@@ -1,0 +1,197 @@
+# Continuous deployment to a local minikube cluster.
+#
+# Two ways to run this, and the distinction matters:
+#
+# 1. **self-hosted runner** (the real deployment). A runner registered on the
+#    machine that owns the minikube cluster applies the manifests to *that*
+#    cluster, and the deployment outlives the workflow. This is the default when
+#    `deploy_target: self-hosted` is chosen.
+#
+# 2. **hosted runner** (verification only). A GitHub-hosted runner starts a
+#    throwaway minikube, deploys into it, smoke tests it and then the whole VM is
+#    destroyed. That proves the manifests, image and rollout are correct; it does
+#    not leave anything running.
+#
+# The second is what runs by default because it needs no infrastructure, and it is
+# labelled as verification rather than presented as a deployment — a pipeline that
+# reports "deployed" after tearing down the cluster is worse than no pipeline,
+# because it manufactures confidence rather than evidence.
+#
+# The trigger is a plain `push` to main plus `workflow_dispatch`, deliberately not
+# `workflow_run` chained to CI: a chained trigger only fires when the workflow file
+# already exists on the default branch, which is exactly when someone setting the
+# project up for the first time will conclude that CD is broken.
+
+name: CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "k8s/**"
+      - "docker/**"
+      - "configs/**"
+      - ".github/workflows/cd.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "Where to deploy"
+        type: choice
+        default: ephemeral
+        options: [ephemeral, self-hosted]
+      image_tag:
+        description: "Image tag to deploy"
+        type: string
+        default: local
+
+concurrency:
+  # One deployment at a time; a superseded run is cancelled rather than racing.
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: mlops-catsdogs
+  TAG: ${{ github.event.inputs.image_tag || 'local' }}
+  NAMESPACE: mlops
+  PYTHON_VERSION: "3.11"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to minikube
+    # `github.event.inputs.deploy_target == 'self-hosted'` swaps this for a runner
+    # attached to the machine that hosts the long-lived cluster.
+    runs-on: ${{ github.event.inputs.deploy_target == 'self-hosted' && 'self-hosted' || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # The image bakes in the checkpoint, so the model has to exist before the
+      # build. Training here rather than pulling a CI artifact keeps this workflow
+      # runnable on its own.
+      - name: Train the model
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          python -m mlops.cli generate-data --per-class 250
+          python -m mlops.cli preprocess
+          python -m mlops.cli train
+          python -m mlops.cli evaluate
+          python -m mlops.cli promote
+
+      - name: Start minikube
+        uses: medyagh/setup-minikube@v0.0.19
+        with:
+          cpus: 2
+          memory: 4000m
+
+      - name: Build the image inside the cluster's Docker daemon
+        # Building against minikube's own daemon means the image is already on the
+        # node, so `imagePullPolicy: IfNotPresent` finds it and no registry is
+        # involved.
+        run: |
+          eval "$(minikube docker-env)"
+          docker build -f docker/Dockerfile -t "$IMAGE:$TAG" .
+          docker images | grep "$IMAGE"
+
+      - name: Apply the manifests
+        run: |
+          kubectl apply -f k8s/
+          kubectl -n "$NAMESPACE" get all
+
+      - name: Wait for the rollout
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deployment/catsdogs-api --timeout=240s
+          kubectl -n "$NAMESPACE" rollout status deployment/catsdogs-ui  --timeout=240s
+          kubectl -n "$NAMESPACE" get pods -o wide
+
+      - name: Verify RBAC lets the dashboard read pod logs
+        # The monitoring panel depends on this permission. Asserting it here means
+        # a broken Role fails the deploy instead of silently producing an empty
+        # log view that looks like "no traffic yet".
+        run: |
+          kubectl -n "$NAMESPACE" auth can-i get pods/log \
+            --as=system:serviceaccount:$NAMESPACE:catsdogs-ui | grep -q yes
+          echo "the dashboard service account can read pod logs"
+
+      - name: Smoke test the deployed service
+        run: |
+          API_URL=$(minikube service catsdogs-api -n "$NAMESPACE" --url)
+          echo "API at $API_URL"
+          bash scripts/wait_for.sh "$API_URL/health" 60
+          bash scripts/smoke_test.sh "$API_URL"
+
+      - name: Score the deployed model against its training baseline
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          API_URL=$(minikube service catsdogs-api -n "$NAMESPACE" --url)
+          python -m mlops.cli perf-check --endpoint "$API_URL" --sample-size 40
+
+      - name: Check the dashboard is serving
+        run: |
+          UI_URL=$(minikube service catsdogs-ui -n "$NAMESPACE" --url)
+          bash scripts/wait_for.sh "$UI_URL/health" 60
+          curl -fsS "$UI_URL/api/status" > /dev/null
+          echo "dashboard at $UI_URL"
+
+      - name: Collect cluster logs
+        # Proves the log path the dashboard uses actually returns data from this
+        # cluster, and leaves the output attached to the run.
+        if: always()
+        run: |
+          mkdir -p deploy-logs
+          kubectl -n "$NAMESPACE" get pods -o wide > deploy-logs/pods.txt 2>&1 || true
+          kubectl -n "$NAMESPACE" describe deployments > deploy-logs/deployments.txt 2>&1 || true
+          kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/part-of=mlops-catsdogs \
+            --all-containers=true --tail=300 > deploy-logs/pod-logs.txt 2>&1 || true
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp > deploy-logs/events.txt 2>&1 || true
+          tail -40 deploy-logs/pod-logs.txt
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence
+          path: |
+            deploy-logs/
+            artifacts/metrics/
+          retention-days: 14
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## Deployment"
+            echo ""
+            if [ "${{ github.event.inputs.deploy_target }}" = "self-hosted" ]; then
+              echo "Target: **persistent minikube on the self-hosted runner**."
+            else
+              echo "Target: **ephemeral minikube on a hosted runner**. This verifies the"
+              echo "manifests, image and rollout; the cluster is destroyed with the runner."
+            fi
+            echo ""
+            echo '```'
+            kubectl -n "$NAMESPACE" get pods 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Roll back a failed deployment
+        if: failure()
+        run: |
+          kubectl -n "$NAMESPACE" rollout undo deployment/catsdogs-api || true
+          kubectl -n "$NAMESPACE" rollout undo deployment/catsdogs-ui || true
+          kubectl -n "$NAMESPACE" get pods

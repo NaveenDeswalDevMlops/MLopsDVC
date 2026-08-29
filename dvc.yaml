@@ -1,0 +1,81 @@
+# The reproducible pipeline. `dvc repro` runs whatever is stale and nothing else.
+#
+# Each stage calls the same CLI the Makefile and CI call, so there is one
+# definition of what a stage does. Metrics and plots are declared with
+# `cache: false` so they are tracked by Git and readable from a bare clone — the
+# numbers a reviewer needs should not require pulling a DVC remote.
+
+stages:
+  generate_data:
+    cmd: python -m mlops.cli generate-data
+    deps:
+      - src/mlops/data/generate.py
+    params:
+      - data.images_per_class
+    outs:
+      - data/raw
+
+  preprocess:
+    cmd: python -m mlops.cli preprocess
+    deps:
+      - data/raw
+      - src/mlops/data/preprocess.py
+      - src/mlops/data/versioning.py
+    params:
+      - data.image_size
+      - data.split.train
+      - data.split.val
+      - data.split.test
+    outs:
+      - data/processed
+      - data/dataset.lock.json:
+          cache: false
+    metrics:
+      - artifacts/metrics/preprocess_stats.json:
+          cache: false
+
+  train:
+    cmd: python -m mlops.cli train
+    deps:
+      - data/processed
+      - src/mlops/models/train.py
+      - src/mlops/models/model.py
+      - src/mlops/data/dataset.py
+    params:
+      - model.type
+      - model.feature_size
+      - training.epochs
+      - training.batch_fraction
+      - training.learning_rate
+    outs:
+      - artifacts/model.pkl
+    metrics:
+      - artifacts/metrics/history.json:
+          cache: false
+    plots:
+      - artifacts/plots/loss_curve.png:
+          cache: false
+      - artifacts/plots/accuracy_curve.png:
+          cache: false
+
+  evaluate:
+    cmd: python -m mlops.cli evaluate
+    deps:
+      - artifacts/model.pkl
+      - data/processed
+      - src/mlops/models/evaluate.py
+    params:
+      - evaluation.threshold
+    metrics:
+      - artifacts/metrics/baseline.json:
+          cache: false
+    plots:
+      - artifacts/plots/confusion_matrix.png:
+          cache: false
+      - artifacts/plots/roc_curve.png:
+          cache: false
+    outs:
+      - artifacts/model_card.md:
+          cache: false
+      - artifacts/metrics/classification_report.txt:
+          cache: false

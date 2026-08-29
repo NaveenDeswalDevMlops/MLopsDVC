@@ -1,0 +1,13 @@
+# Scrapes the API's /metrics endpoint. The exposition format the service emits is
+# standard Prometheus text, so no exporter or adapter sits in between.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: catsdogs-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: catsdogs-api

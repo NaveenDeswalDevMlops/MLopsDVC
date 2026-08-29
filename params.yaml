@@ -1,0 +1,19 @@
+# Parameters DVC tracks for the pipeline stages. These mirror the equivalent keys
+# in configs/config.yaml; the Makefile exports them as MLOPS_* overrides so there
+# is one effective value rather than two competing sources of truth.
+data:
+  images_per_class: 300
+  image_size: 224
+  split:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+model:
+  type: logreg
+  feature_size: 24
+training:
+  epochs: 30
+  batch_fraction: 0.5
+  learning_rate: 0.02
+evaluation:
+  threshold: 0.5

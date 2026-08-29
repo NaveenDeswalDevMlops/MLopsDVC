@@ -1,0 +1,13 @@
+# Deny everything, then allow only what the image needs. An allow-list keeps a
+# stray virtualenv or dataset out of the build context by default.
+*
+!src/
+!configs/
+!scripts/
+!requirements.txt
+!pyproject.toml
+!artifacts/model.pkl
+!artifacts/metrics/baseline.json
+!artifacts/model_card.md
+**/__pycache__
+**/*.pyc

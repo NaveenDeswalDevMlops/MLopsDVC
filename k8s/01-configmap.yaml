@@ -1,0 +1,24 @@
+# Runtime configuration. Every key maps onto the MLOPS_* override syntax the
+# application already understands, so nothing in the image needs to change to
+# retarget it at a different service or namespace.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: catsdogs-config
+  namespace: mlops
+  labels:
+    app.kubernetes.io/part-of: mlops-catsdogs
+data:
+  MLOPS_SERVING__HOST: "0.0.0.0"
+  MLOPS_SERVING__PORT: "8000"
+  MLOPS_SERVING__MODEL_VERSION: "k8s"
+  MLOPS_UI__HOST: "0.0.0.0"
+  MLOPS_UI__PORT: "8501"
+  # Cluster DNS name of the API service. The dashboard pod has its own loopback,
+  # so 127.0.0.1 would point it at itself.
+  MLOPS_UI__API_URL: "http://catsdogs-api.mlops.svc.cluster.local:8000"
+  MLOPS_MONITORING__KUBERNETES__ENABLED: "true"
+  MLOPS_MONITORING__KUBERNETES__NAMESPACE: "mlops"
+  MLOPS_MONITORING__KUBERNETES__LABEL_SELECTOR: "app.kubernetes.io/part-of=mlops-catsdogs"
+  MLOPS_MONITORING__KUBERNETES__TAIL_LINES: "200"
+  MLOPS_LOGGING__LEVEL: "INFO"

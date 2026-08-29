@@ -1,0 +1,34 @@
+# Bytecode and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data and model binaries are versioned by DVC, not Git.
+data/raw/
+data/processed/
+artifacts/model.pkl
+artifacts/runs/
+mlruns/
+.dvcstore/
+
+# Runtime output
+logs/
+*.log
+
+# Deliberately NOT ignored, because a reviewer must be able to read the results
+# from a bare clone without pulling a DVC remote:
+#   artifacts/metrics/*.json
+#   artifacts/metrics/*.txt
+#   artifacts/plots/*.png
+#   artifacts/model_card.md
+#   data/dataset.lock.json
+
+# OS noise
+.DS_Store
+Thumbs.db

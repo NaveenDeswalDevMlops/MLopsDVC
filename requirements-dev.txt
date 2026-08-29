@@ -1,0 +1,5 @@
+# Development and CI extras, on top of requirements.txt.
+-r requirements.txt
+pytest==8.3.3
+pytest-cov==5.0.0
+ruff==0.7.2

@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-08-29T05:17:25+00:00",
+  "raw": {
+    "path": "data/raw",
+    "files": 600,
+    "bytes": 7816632,
+    "digest": "fade29b05a2bee7c0af4b0f180d4cf346766a7654aa2af60571a8be575f357ab"
+  },
+  "processed": {
+    "path": "data/processed",
+    "files": 601,
+    "bytes": 14369928,
+    "digest": "13d7e33eb98f0f17a68e38e174b09c56c6315d60929f4b980acccafee95005b0"
+  },
+  "combined_digest": "176923e129aadf3fda2fe9bec5ebf2b8045dc6c315a7bab6c18e7b70a3d67011"
+}

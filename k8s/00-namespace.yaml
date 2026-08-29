@@ -1,0 +1,8 @@
+# All project objects live in one namespace so `kubectl delete namespace mlops`
+# is a complete uninstall.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops
+  labels:
+    app.kubernetes.io/part-of: mlops-catsdogs

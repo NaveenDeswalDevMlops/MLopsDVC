@@ -1,0 +1,7 @@
+# Paths DVC should not walk.
+.git/
+.github/
+artifacts/
+logs/
+mlruns/
+**/__pycache__/

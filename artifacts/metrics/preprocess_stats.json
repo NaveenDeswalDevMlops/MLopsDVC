@@ -1,0 +1,35 @@
+{
+  "image_size": 224,
+  "channels": 3,
+  "classes": [
+    "cat",
+    "dog"
+  ],
+  "counts": {
+    "train": {
+      "total": 479,
+      "cat": 233,
+      "dog": 246
+    },
+    "val": {
+      "total": 66,
+      "cat": 40,
+      "dog": 26
+    },
+    "test": {
+      "total": 55,
+      "cat": 27,
+      "dog": 28
+    }
+  },
+  "total_images": 600,
+  "skipped": [],
+  "dataset_digest": "6fd7ebf8d3136103a5e7325290637391f91a42c166efe59887d6a25be4df6622",
+  "manifest": "data/processed/manifest.csv",
+  "split_ratios": {
+    "train": 0.8,
+    "val": 0.1,
+    "test": 0.1
+  },
+  "hash_salt": "catsdogs-v1"
+}
