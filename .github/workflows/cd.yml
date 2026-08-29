@@ -1,8 +1,8 @@
-name: CD (Compose)
+name: CD (Deploy on macbook)
 
 on:
   push:
-    branches: [main-l]
+    branches: [main]
     paths:
       - "src/**"
       - "docker/**"
@@ -37,9 +37,9 @@ permissions:
 jobs:
   deploy:
     name: Deploy with Docker Compose
-    # Run on pushes or manual dispatch, and when triggered by the CI workflow
-    # completing successfully.
-    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.name == 'CI') }}
+    # Run on pushes and when triggered by the CI workflow completing successfully.
+    # Manual `workflow_dispatch` should instead be handled by the self-hosted job.
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.name == 'CI') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -141,7 +141,6 @@ jobs:
 
   deploy-to-naveen-macbook-air:
     name: Deploy to naveen-macbook-air (self-hosted)
-    needs: deploy
     runs-on: self-hosted
     if: github.event.inputs.image_tag != 'skip'
     steps:
