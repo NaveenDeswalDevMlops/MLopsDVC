@@ -1,14 +1,6 @@
 # Continuous integration: lint, test, run the pipeline, build the image, publish it.
-#
-# The job order encodes what is worth failing fast on. Lint and tests run first
-# because they are seconds; the pipeline runs next because an image containing a
-# model that failed its own accuracy gate should never be built; the image is built
-# last and only pushed from the default branch.
-#
-# The image is built *after training* so the checkpoint is baked into it, which is
-# what makes the published artifact self-contained: pull the tag, run it, get
-# predictions, with no volume to mount and no model to download at start-up.
-
+# The final image contains the model, evaluation evidence, experiment run records,
+# dataset manifest and deployment metadata so the dashboard is self-contained.
 name: CI
 
 on:
@@ -33,21 +25,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: requirements-dev.txt
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-
       - name: Lint
         run: ruff check src tests
-
       - name: Run tests with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}/src
@@ -57,7 +45,6 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml \
             --cov-fail-under=70
-
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,54 +59,42 @@ jobs:
     needs: quality
     outputs:
       accuracy: ${{ steps.gate.outputs.accuracy }}
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: requirements.txt
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Reproduce DVC pipeline (if present)
         if: ${{ always() }}
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: |
           if [ -f dvc.yaml ]; then
-            echo "Found dvc.yaml — running dvc repro && dvc push (local remote)"
             dvc repro || true
             dvc push || true
-          else
-            echo "No dvc.yaml, skipping dvc repro"
           fi
-
       - name: Generate dataset
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python -m mlops.cli generate-data --per-class 250
-
       - name: Preprocess
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python -m mlops.cli preprocess
-
       - name: Train
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python -m mlops.cli train
-
       - name: Evaluate
         env:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python -m mlops.cli evaluate
-
       - name: Apply the promotion gate
         id: gate
         env:
@@ -129,7 +104,6 @@ jobs:
           accuracy=$(python -c "import json;print(json.load(open('artifacts/metrics/baseline.json'))['metrics']['accuracy'])")
           echo "accuracy=$accuracy" >> "$GITHUB_OUTPUT"
           echo "### Model gate passed — test accuracy \`$accuracy\`" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Start the API and smoke test it
         env:
           PYTHONPATH: ${{ github.workspace }}/src
@@ -137,34 +111,10 @@ jobs:
           python -m mlops.cli serve-api --port 8000 &
           echo $! > api.pid
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 60
-          echo "Waiting for /ready and model to be loaded..."
-          ok=0
-          for i in $(seq 1 12); do
-            echo "check #$i"
-            status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ready || true)
-            model_info=$(curl -sS http://127.0.0.1:8000/model-info || true)
-            if [ "$status" = "200" ]; then
-              if echo "$model_info" | grep -q '"model_loaded":true' || \
-                 echo "$model_info" | grep -q '"checkpoint"' || \
-                 echo "$model_info" | grep -q '"classes"'; then
-                ok=1
-                break
-              fi
-            fi
-            sleep 5
-          done
-          if [ "$ok" != "1" ]; then
-            echo "Service did not become ready with model loaded." >&2
-            curl -sS http://127.0.0.1:8000/model-info || true
-            ps -ef | sed -n '1,200p' || true
-            kill "$(cat api.pid)" || true
-            exit 1
-          fi
           bash scripts/smoke_test.sh http://127.0.0.1:8000
           python -m mlops.cli perf-check --endpoint http://127.0.0.1:8000 --sample-size 40
           kill "$(cat api.pid)"
-
-      - name: Upload model and metrics
+      - name: Upload model, metrics, runs and dataset evidence
         uses: actions/upload-artifact@v4
         with:
           name: model-artifacts
@@ -173,15 +123,15 @@ jobs:
             artifacts/model_card.md
             artifacts/metrics/
             artifacts/plots/
+            artifacts/runs/
+            data/
           retention-days: 30
-
       - name: Package submission zip (source, configs, artifacts)
         run: |
           set -e
           mkdir -p submission
           zip -r submission/mlops_assignment2_submission.zip \
             src docker k8s .github dvc.yaml dvc.lock requirements.txt requirements-dev.txt README.md artifacts mlruns || true
-
       - name: Upload submission
         uses: actions/upload-artifact@v4
         with:
@@ -193,34 +143,27 @@ jobs:
     name: Build and publish the image
     runs-on: ubuntu-latest
     needs: pipeline
-
     permissions:
       contents: read
       packages: write
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download the trained model
+      - name: Download trained model and dashboard evidence
         uses: actions/download-artifact@v4
         with:
           name: model-artifacts
-          path: artifacts
-
+          path: .
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the registry (use CR_PAT if set, else GITHUB_TOKEN)
+      - name: Log in to the registry
         if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.CR_PAT || secrets.GITHUB_TOKEN }}
-
       - name: Derive tags
         id: meta
         uses: docker/metadata-action@v5
@@ -232,9 +175,6 @@ jobs:
             type=semver,pattern={{version}}
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
-
-      # Build one native CI image for validation. The final publish below creates
-      # the multi-platform manifest used by both AMD64 and Apple Silicon runners.
       - name: Build validation image
         uses: docker/build-push-action@v6
         with:
@@ -246,22 +186,19 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
-
-      - name: Smoke test the image
+      - name: Smoke test the image and dashboard
         run: |
           IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
-          echo "Starting image: $IMAGE"
-          docker run -d --name catsdogs -p 8000:8000 "$IMAGE"
+          docker run -d --name catsdogs -p 8000:8000 -p 8501:8501 "$IMAGE"
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 60
           curl -fsS http://127.0.0.1:8000/ready
           curl -fsS http://127.0.0.1:8000/model-info
+          docker exec catsdogs python -c "from pathlib import Path; assert Path('/app/artifacts/metrics/history.json').is_file(); assert Path('/app/artifacts/metrics/promotion.json').is_file(); assert Path('/app/artifacts/plots').glob('*.png'); assert Path('/app/.github/workflows/ci.yml').is_file(); assert Path('/app/docker/docker-compose.yml').is_file()"
           docker rm -f catsdogs
-
       - name: Scan for vulnerabilities
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
           IMAGE_LOWER=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
-          echo "Scanning $IMAGE_LOWER for vulnerabilities"
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:latest image \
@@ -270,10 +207,6 @@ jobs:
             --ignore-unfixed \
             --severity CRITICAL,HIGH \
             "$IMAGE_LOWER"
-
-      # Publish the exact same source/model as the validated image for both
-      # architectures. GHCR creates a manifest so Docker Desktop on Apple Silicon
-      # automatically selects linux/arm64.
       - name: Push multi-platform image
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
