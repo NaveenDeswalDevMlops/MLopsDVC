@@ -1,9 +1,8 @@
-
 name: CD (Compose)
 
 on:
   push:
-    branches: [main-l]
+    branches: [main]-l
     paths:
       - "src/**"
       - "docker/**"
@@ -52,6 +51,7 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
+        if: ${{ steps.image.outputs.is_local == 'true' }}
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -89,7 +89,14 @@ jobs:
           fi
 
           echo "TAG=$TAG" >> $GITHUB_ENV
+          echo "OWNER_LOWER=$OWNER_LOWER" >> $GITHUB_ENV
           echo "IMAGE=ghcr.io/$OWNER_LOWER/${{ env.IMAGE }}:$TAG" >> $GITHUB_ENV
+          # Export whether we're using a local tag so later steps can conditionally build
+          if [ "$TAG" = "local" ]; then
+            echo "is_local=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_local=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Pull image (if not local) and run with Docker Compose
         run: |
@@ -107,7 +114,7 @@ jobs:
             docker compose -f docker/docker-compose.yml up -d --no-build
           else
             echo "Local tag requested; starting compose (may build)"
-            docker compose -f docker/docker-compose.yml up -d
+            docker compose -f docker/docker-compose.yml up -d --build
           fi
 
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 120
@@ -149,17 +156,17 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE }}:${{ env.TAG }}
+          tags: ghcr.io/${{ toLower(github.repository_owner) }}/${{ env.IMAGE }}:${{ env.TAG }}
 
       - name: Deploy on naveen-macbook-air (local runner)
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE }}:${{ env.TAG }}
+          IMAGE: ghcr.io/${{ toLower(github.repository_owner) }}/${{ env.IMAGE }}:${{ env.TAG }}
         run: |
           set -euo pipefail
           echo "Pulling $IMAGE"
           if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
             echo "Logging into ghcr.io"
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin || true
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ toLower(github.repository_owner) }}" --password-stdin || true
           fi
           docker pull "$IMAGE" || true
           echo "Tagging to mlops-catsdogs:local for Compose"
