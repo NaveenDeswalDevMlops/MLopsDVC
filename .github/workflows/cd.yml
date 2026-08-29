@@ -1,26 +1,4 @@
-# Continuous deployment to a local minikube cluster.
-#
-# Two ways to run this, and the distinction matters:
-#
-# 1. **self-hosted runner** (the real deployment). A runner registered on the
-#    machine that owns the minikube cluster applies the manifests to *that*
-#    cluster, and the deployment outlives the workflow. This is the default when
-#    `deploy_target: self-hosted` is chosen.
-#
-# 2. **hosted runner** (verification only). A GitHub-hosted runner starts a
-#    throwaway minikube, deploys into it, smoke tests it and then the whole VM is
-#    destroyed. That proves the manifests, image and rollout are correct; it does
-#    not leave anything running.
-#
-# The second is what runs by default because it needs no infrastructure, and it is
-# labelled as verification rather than presented as a deployment — a pipeline that
-# reports "deployed" after tearing down the cluster is worse than no pipeline,
-# because it manufactures confidence rather than evidence.
-#
-# The trigger is a plain `push` to main plus `workflow_dispatch`, deliberately not
-# `workflow_run` chained to CI: a chained trigger only fires when the workflow file
-# already exists on the default branch, which is exactly when someone setting the
-# project up for the first time will conclude that CD is broken.
+
 
 name: CD (Compose)
 
@@ -78,20 +56,37 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Train the model
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
+      - name: Determine image to deploy
+        id: image
         run: |
-          python -m mlops.cli generate-data --per-class 250
-          python -m mlops.cli preprocess
-          python -m mlops.cli train
-          python -m mlops.cli evaluate
-          python -m mlops.cli promote
+          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
+            TAG=sha-${{ github.event.workflow_run.head_sha }}
+            echo "Triggered by CI workflow run; using image tag $TAG"
+          elif [ -n "${{ github.event.inputs.image_tag || '' }}" ]; then
+            TAG=${{ github.event.inputs.image_tag }}
+            echo "Using requested image tag $TAG"
+          else
+            TAG=local
+            echo "No image tag requested; using local" 
+          fi
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          echo "IMAGE=ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE }}:$TAG" >> $GITHUB_ENV
 
-      - name: Build and run with Docker Compose
+      - name: Pull image (if not local) and run with Docker Compose
         run: |
-          docker compose -f docker/docker-compose.yml up --build -d
+          set -euo pipefail
+          echo "IMAGE=$IMAGE" ; echo "TAG=$TAG"
+          if [ "$TAG" != "local" ]; then
+            if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
+              echo "Logging into ghcr.io"
+              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin || true
+            fi
+            echo "Pulling $IMAGE"
+            docker pull "$IMAGE" || true
+            docker tag "$IMAGE" mlops-catsdogs:local || true
+          fi
+          docker compose -f docker/docker-compose.yml up -d
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 120
 
       - name: Smoke test the deployed service
