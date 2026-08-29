@@ -3,7 +3,7 @@ name: CD (Compose)
 
 on:
   push:
-    branches: [main]
+    branches: [main-l]
     paths:
       - "src/**"
       - "docker/**"
@@ -64,8 +64,22 @@ jobs:
           OWNER_LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
 
           if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
-            TAG=sha-${{ github.event.workflow_run.head_sha }}
-            echo "Triggered by CI workflow run; using image tag $TAG"
+            # Inspect the workflow_run payload to see which event triggered CI
+            # (push vs pull_request). Only attempt to pull the CI-built image
+            # for push events; for PRs the CI job usually won't push the image.
+            if command -v jq >/dev/null 2>&1 && [ -f "$GITHUB_EVENT_PATH" ]; then
+              CI_EVENT=$(jq -r '.workflow_run.event // ""' "$GITHUB_EVENT_PATH")
+            else
+              CI_EVENT=""
+            fi
+            echo "CI workflow event: $CI_EVENT"
+            if [ "$CI_EVENT" = "push" ]; then
+              TAG=sha-${{ github.event.workflow_run.head_sha }}
+              echo "Triggered by CI push run; using image tag $TAG"
+            else
+              TAG=local
+              echo "Triggered by CI run from $CI_EVENT; falling back to local tag"
+            fi
           elif [ -n "${{ github.event.inputs.image_tag || '' }}" ]; then
             TAG=${{ github.event.inputs.image_tag }}
             echo "Using requested image tag $TAG"
@@ -84,7 +98,7 @@ jobs:
           if [ "$TAG" != "local" ]; then
             if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
               echo "Logging into ghcr.io"
-              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin || true
+              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "$OWNER_LOWER" --password-stdin || true
             fi
             echo "Pulling $IMAGE"
             docker pull "$IMAGE" || true
