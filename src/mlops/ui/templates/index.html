@@ -1,122 +1,368 @@
-MLOps pipeline · binary image classification
-{{ project_name }}
-Cats vs dogs for a pet adoption platform · v{{ project_version }}
-API{{ api_url }}
-Model—
-Jobidle
-Refresh
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ project_name }} — control room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230B6E99'/></svg>">
+</head>
+<body data-api-url="{{ api_url }}" data-refresh="{{ refresh_seconds }}">
 
-	1	
-Overview Data & versioning Model building Experiment tracking Inference API Monitoring & logs Performance tracking Deployment
-Run the whole pipeline
-Generates data, preprocesses, trains, evaluates and applies the promotion gate.
-Overview
-loading…
+<header class="masthead">
+  <div class="masthead-top">
+    <div class="identity">
+      <span class="eyebrow">MLOps pipeline · binary image classification</span>
+      <h1>{{ project_name }}</h1>
+      <p class="subtitle">Cats vs dogs for a pet adoption platform · v{{ project_version }}</p>
+    </div>
+    <div class="identity-right">
+      <div class="kv"><span>API</span><code id="hdr-api">{{ api_url }}</code></div>
+      <div class="kv"><span>Model</span><code id="hdr-model">—</code></div>
+      <div class="kv"><span>Job</span><code id="hdr-job">idle</code></div>
+      <button class="btn btn-quiet" id="btn-refresh" type="button">Refresh</button>
+    </div>
+  </div>
 
-Pipeline stages
-	•	
-Recent jobs
-Action
-Status
-Duration
-Started
+  <!-- The spine: one marker per pipeline stage, filled when the stage's own
+       artifact exists on disk. Click a marker to jump to its panel. -->
+  <nav class="spine" id="spine" aria-label="Pipeline stages">
+    <div class="spine-rail" aria-hidden="true"></div>
+    <ol class="spine-nodes" id="spine-nodes"></ol>
+  </nav>
+</header>
 
-Data & versioning
-M1.1 — Git for code, DVC for data, content hashes for identity
-Images per class Generate dataset Preprocess to 224×224 Recompute dataset lock Show sample images
-Splits
-Split
-cat
-dog
-total
+<div class="shell">
+  <aside class="sidebar">
+    <nav aria-label="Sections">
+      <a href="#panel-overview" class="nav-link">Overview</a>
+      <a href="#panel-data" class="nav-link">Data &amp; versioning</a>
+      <a href="#panel-training" class="nav-link">Model building</a>
+      <a href="#panel-experiments" class="nav-link">Experiment tracking</a>
+      <a href="#panel-api" class="nav-link">Inference API</a>
+      <a href="#panel-monitoring" class="nav-link">Monitoring &amp; logs</a>
+      <a href="#panel-performance" class="nav-link">Performance tracking</a>
+      <a href="#panel-deployment" class="nav-link">Deployment</a>
+    </nav>
+    <div class="sidebar-foot">
+      <button class="btn btn-primary block" id="btn-run-all" type="button">Run the whole pipeline</button>
+      <p class="hint">Generates data, preprocesses, trains, evaluates and applies the promotion gate.</p>
+    </div>
+  </aside>
 
+  <main>
+    <!-- Overview ------------------------------------------------------ -->
+    <section class="panel" id="panel-overview">
+      <div class="panel-head">
+        <h2>Overview</h2>
+        <span class="panel-note" id="overview-note">loading…</span>
+      </div>
+      <div class="stat-grid" id="stat-grid"></div>
+      <div class="split">
+        <div class="card">
+          <h3>Pipeline stages</h3>
+          <ul class="stage-list" id="stage-list"></ul>
+        </div>
+        <div class="card">
+          <h3>Recent jobs</h3>
+          <table class="table" id="jobs-table">
+            <thead><tr><th>Action</th><th>Status</th><th>Duration</th><th>Started</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-Version identity
+    <!-- Data & versioning --------------------------------------------- -->
+    <section class="panel" id="panel-data">
+      <div class="panel-head">
+        <h2>Data &amp; versioning</h2>
+        <span class="panel-note">M1.1 — Git for code, DVC for data, content hashes for identity</span>
+      </div>
 
-dvc status dvc repro dvc dag dvc commit dvc push
-Run a DVC command to see its output here.
-Model building
-M1.2 — baseline on flattened pixels, checkpoint saved as .pkl
-Model
-            logistic regression
-            multi-layer perceptron
-           Epochs Learning rate Train Evaluate on test split Apply promotion gate
-Latest metrics
+      <div class="actions">
+        <label class="field">
+          <span>Images per class</span>
+          <input type="number" id="per-class" value="300" min="20" max="5000" step="20">
+        </label>
+        <button class="btn" id="btn-generate" type="button">Generate dataset</button>
+        <button class="btn" id="btn-preprocess" type="button">Preprocess to 224×224</button>
+        <button class="btn" id="btn-lock" type="button">Recompute dataset lock</button>
+        <button class="btn btn-quiet" id="btn-samples" type="button">Show sample images</button>
+      </div>
 
-Promotion
+      <div class="split">
+        <div class="card">
+          <h3>Splits</h3>
+          <table class="table" id="split-table">
+            <thead><tr><th>Split</th><th>cat</th><th>dog</th><th>total</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <dl class="kv-list" id="data-kv"></dl>
+        </div>
+        <div class="card">
+          <h3>Version identity</h3>
+          <dl class="kv-list" id="version-kv"></dl>
+          <div class="actions tight">
+            <button class="btn btn-small" data-dvc="status" type="button">dvc status</button>
+            <button class="btn btn-small" data-dvc="repro" type="button">dvc repro</button>
+            <button class="btn btn-small" data-dvc="dag" type="button">dvc dag</button>
+            <button class="btn btn-small" data-dvc="commit" type="button">dvc commit</button>
+            <button class="btn btn-small" data-dvc="push" type="button">dvc push</button>
+          </div>
+          <pre class="console" id="dvc-console">Run a DVC command to see its output here.</pre>
+        </div>
+      </div>
 
-Curves and diagnostics
+      <div class="card" id="samples-card" hidden>
+        <h3>Processed samples</h3>
+        <div class="thumb-grid" id="samples-grid"></div>
+      </div>
+    </section>
 
-Model card
-Evaluate a model to generate its card.
-Experiment tracking
-M1.3 — runs, params, metrics and artifacts
-Started
-Run
-Stage
-Status
-Key metric
-Backend
+    <!-- Training ------------------------------------------------------ -->
+    <section class="panel" id="panel-training">
+      <div class="panel-head">
+        <h2>Model building</h2>
+        <span class="panel-note">M1.2 — baseline on flattened pixels, checkpoint saved as .pkl</span>
+      </div>
 
-Inference API
-M2.1 — health check and prediction over REST
-GET /health GET /ready GET /model-info GET / POST /reload
-The API loads the checkpoint once at start-up. After training, use POST /reload so the running service serves the new weights.
-Call an endpoint to see the response.
-Predict from a file
-Send to /predict Use a random test image
+      <div class="actions">
+        <label class="field">
+          <span>Model</span>
+          <select id="model-type">
+            <option value="logreg">logistic regression</option>
+            <option value="mlp">multi-layer perceptron</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Epochs</span>
+          <input type="number" id="epochs" value="24" min="2" max="200">
+        </label>
+        <label class="field">
+          <span>Learning rate</span>
+          <input type="number" id="learning-rate" value="0.02" min="0.0001" max="1" step="0.001">
+        </label>
+        <button class="btn btn-primary" id="btn-train" type="button">Train</button>
+        <button class="btn" id="btn-evaluate" type="button">Evaluate on test split</button>
+        <button class="btn" id="btn-promote" type="button">Apply promotion gate</button>
+      </div>
 
-curl
+      <div class="split">
+        <div class="card">
+          <h3>Latest metrics</h3>
+          <dl class="kv-list" id="training-kv"></dl>
+        </div>
+        <div class="card">
+          <h3>Promotion</h3>
+          <dl class="kv-list" id="promotion-kv"></dl>
+        </div>
+      </div>
 
-The same request the buttons above make, for a terminal or Postman.
-Monitoring & logs
-M5.1 — request counters, latency, structured logs, cluster logs
+      <div class="card">
+        <h3>Curves and diagnostics</h3>
+        <div class="plot-grid" id="plot-grid"></div>
+      </div>
 
-Send 20 predictions Show raw /metrics Log source
-            auto
-            local files
-            minikube (kubectl)
-            in-cluster API
-           Fetch logs Collect & archive cluster logs
-Pods —
-Pod
-Phase
-Ready
-Restarts
-Node
-Image
+      <details class="card">
+        <summary>Model card</summary>
+        <pre class="console tall" id="model-card">Evaluate a model to generate its card.</pre>
+      </details>
+    </section>
 
-Log stream —
+    <!-- Experiments --------------------------------------------------- -->
+    <section class="panel" id="panel-experiments">
+      <div class="panel-head">
+        <h2>Experiment tracking</h2>
+        <span class="panel-note" id="mlflow-note">M1.3 — runs, params, metrics and artifacts</span>
+      </div>
+      <div class="card">
+        <table class="table" id="runs-table">
+          <thead><tr><th>Started</th><th>Run</th><th>Stage</th><th>Status</th><th>Key metric</th><th>Backend</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card" id="run-detail-card" hidden>
+        <h3 id="run-detail-title">Run detail</h3>
+        <div class="split">
+          <div>
+            <h4>Parameters</h4>
+            <pre class="console" id="run-params"></pre>
+          </div>
+          <div>
+            <h4>Metrics</h4>
+            <pre class="console" id="run-metrics"></pre>
+          </div>
+        </div>
+        <h4>Artifacts</h4>
+        <ul class="chip-list" id="run-artifacts"></ul>
+      </div>
+    </section>
 
+    <!-- API ----------------------------------------------------------- -->
+    <section class="panel" id="panel-api">
+      <div class="panel-head">
+        <h2>Inference API</h2>
+        <span class="panel-note">M2.1 — health check and prediction over REST</span>
+      </div>
 
-Performance tracking
-M5.2 — labelled batch scored against the live endpoint
-Sample size Run performance check
-Verdict —
-	•	
-Live vs baseline
-Metric
-Baseline
-Live
-Δ
+      <div class="actions">
+        <button class="btn" data-probe="/health" type="button">GET /health</button>
+        <button class="btn" data-probe="/ready" type="button">GET /ready</button>
+        <button class="btn" data-probe="/model-info" type="button">GET /model-info</button>
+        <button class="btn" data-probe="/" type="button">GET /</button>
+        <button class="btn btn-quiet" id="btn-reload-model" type="button">POST /reload</button>
+      </div>
+      <p class="hint">The API loads the checkpoint once at start-up. After training,
+      use <code>POST /reload</code> so the running service serves the new weights.</p>
+      <pre class="console" id="probe-console">Call an endpoint to see the response.</pre>
 
-Confusion matrix and latency
+      <div class="split">
+        <div class="card">
+          <h3>Predict from a file</h3>
+          <input type="file" id="predict-file" accept="image/*">
+          <div class="actions tight">
+            <button class="btn btn-primary" id="btn-predict" type="button">Send to /predict</button>
+            <button class="btn" id="btn-predict-sample" type="button">Use a random test image</button>
+          </div>
+          <div id="predict-result" class="result-block"></div>
+        </div>
+        <div class="card">
+          <h3>curl</h3>
+          <pre class="console" id="curl-block"></pre>
+          <p class="hint">The same request the buttons above make, for a terminal or Postman.</p>
+        </div>
+      </div>
+    </section>
 
+    <!-- Monitoring ---------------------------------------------------- -->
+    <section class="panel" id="panel-monitoring">
+      <div class="panel-head">
+        <h2>Monitoring &amp; logs</h2>
+        <span class="panel-note">M5.1 — request counters, latency, structured logs, cluster logs</span>
+      </div>
 
-Deployment
-M3 & M4 — image build, CI/CD workflows, minikube manifests
-Kubernetes manifests
-	•	
-CI/CD workflows
-	•	
-Docker
-	•	
-File preview
-Select a file on the left to read it.
-Deploy to minikube
-make docker-build      # build the image with the trained model baked in
+      <div class="stat-grid" id="metric-grid"></div>
+
+      <div class="actions">
+        <button class="btn" id="btn-load-test" type="button">Send 20 predictions</button>
+        <button class="btn btn-quiet" id="btn-metrics-raw" type="button">Show raw /metrics</button>
+        <label class="field">
+          <span>Log source</span>
+          <select id="log-source">
+            <option value="auto">auto</option>
+            <option value="local">local files</option>
+            <option value="kubectl">minikube (kubectl)</option>
+            <option value="in-cluster">in-cluster API</option>
+          </select>
+        </label>
+        <button class="btn" id="btn-logs" type="button">Fetch logs</button>
+        <button class="btn" id="btn-collect-k8s" type="button">Collect &amp; archive cluster logs</button>
+      </div>
+
+      <pre class="console" id="metrics-raw" hidden></pre>
+
+      <div class="card">
+        <h3>Pods <span class="tag" id="pods-source">—</span></h3>
+        <table class="table" id="pods-table">
+          <thead><tr><th>Pod</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>Node</th><th>Image</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Log stream <span class="tag" id="log-source-tag">—</span></h3>
+        <p class="hint" id="log-message"></p>
+        <div class="logview" id="log-view"></div>
+      </div>
+    </section>
+
+    <!-- Performance --------------------------------------------------- -->
+    <section class="panel" id="panel-performance">
+      <div class="panel-head">
+        <h2>Performance tracking</h2>
+        <span class="panel-note">M5.2 — labelled batch scored against the live endpoint</span>
+      </div>
+
+      <div class="actions">
+        <label class="field">
+          <span>Sample size</span>
+          <input type="number" id="perf-sample" value="40" min="4" max="400" step="2">
+        </label>
+        <button class="btn btn-primary" id="btn-perf" type="button">Run performance check</button>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <h3>Verdict <span class="tag" id="perf-verdict">—</span></h3>
+          <ul class="gate-list" id="perf-gates"></ul>
+        </div>
+        <div class="card">
+          <h3>Live vs baseline</h3>
+          <table class="table" id="perf-table">
+            <thead><tr><th>Metric</th><th>Baseline</th><th>Live</th><th>Δ</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Confusion matrix and latency</h3>
+        <div class="split">
+          <table class="table" id="perf-confusion"></table>
+          <dl class="kv-list" id="perf-latency"></dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deployment ---------------------------------------------------- -->
+    <section class="panel" id="panel-deployment">
+      <div class="panel-head">
+        <h2>Deployment</h2>
+        <span class="panel-note">M3 &amp; M4 — image build, CI/CD workflows, minikube manifests</span>
+      </div>
+      <div class="split">
+        <div class="card">
+          <h3>Kubernetes manifests</h3>
+          <ul class="chip-list" id="k8s-list"></ul>
+          <h3>CI/CD workflows</h3>
+          <ul class="chip-list" id="workflow-list"></ul>
+          <h3>Docker</h3>
+          <ul class="chip-list" id="docker-list"></ul>
+        </div>
+        <div class="card">
+          <h3>File preview</h3>
+          <pre class="console tall" id="file-preview">Select a file on the left to read it.</pre>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Deploy to minikube</h3>
+        <pre class="console">make docker-build      # build the image with the trained model baked in
 make minikube-up       # start the cluster and create the namespace
 make k8s-deploy        # load the image, apply the manifests, wait for rollout
 make k8s-urls          # print the API and dashboard URLs
-make k8s-smoke         # health + prediction against the deployed service
-The dashboard deployed inside the cluster reads pod logs through the Kubernetes API using its own service account, so the log panel above keeps working there.
+make k8s-smoke         # health + prediction against the deployed service</pre>
+        <p class="hint">The dashboard deployed inside the cluster reads pod logs through the
+        Kubernetes API using its own service account, so the log panel above keeps working there.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Job drawer: shows the live log of whatever is running. -->
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-head">
+    <span id="drawer-title">job</span>
+    <span class="tag" id="drawer-status">running</span>
+    <button class="btn btn-small btn-quiet" id="drawer-close" type="button">Close</button>
+  </div>
+  <pre class="console tall" id="drawer-log"></pre>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

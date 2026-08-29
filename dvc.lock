@@ -45,7 +45,7 @@ stages:
       size: 599
     - path: data/dataset.lock.json
       hash: md5
-      md5: a9cd792030e12a3491baee306e8636c9
+      md5: e1fe2fae139cbe9d9cd2345c6816bf33
       size: 473
     - path: data/processed
       hash: md5
@@ -86,8 +86,8 @@ stages:
       size: 1244
     - path: artifacts/model.pkl
       hash: md5
-      md5: d1518578d7db0a05c1b908157b78feda
-      size: 64573
+      md5: f3929e42be80e97480633c1adcdc7bd6
+      size: 64589
     - path: artifacts/plots/accuracy_curve.png
       hash: md5
       md5: fb53103f1fb7c3c9a6f76e427a97a7eb
@@ -101,8 +101,8 @@ stages:
     deps:
     - path: artifacts/model.pkl
       hash: md5
-      md5: d1518578d7db0a05c1b908157b78feda
-      size: 64573
+      md5: f3929e42be80e97480633c1adcdc7bd6
+      size: 64589
     - path: data/processed
       hash: md5
       md5: 3af6f691857ba335fbf3e7d6e20ace4b.dir
@@ -118,16 +118,16 @@ stages:
     outs:
     - path: artifacts/metrics/baseline.json
       hash: md5
-      md5: f4ff7fd0b7396e696f60aa4dc0bb66ee
-      size: 1352
+      md5: 0bd98ef36e7646417349d3040acccbb5
+      size: 1360
     - path: artifacts/metrics/classification_report.txt
       hash: md5
       md5: b38c5d5665a2f737ec4bbc3a6b728fa3
       size: 326
     - path: artifacts/model_card.md
       hash: md5
-      md5: 0bd9796cce7ab96564cc840faf171f3d
-      size: 1406
+      md5: e99842e9de0bb6fb2347e2826213c4b2
+      size: 1410
     - path: artifacts/plots/confusion_matrix.png
       hash: md5
       md5: fb680d15e680eca4c764a4589608e1ce

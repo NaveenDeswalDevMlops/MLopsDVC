@@ -100,9 +100,9 @@ stop: ## Stop the background API and dashboard
 	done
 	@echo "stopped"
 
-mlflow-ui: install ## Open the MLflow tracking UI on :5000 (runs are written by every stage)
-	@echo "MLflow UI at http://127.0.0.1:5000 — Ctrl-C to stop"
-	$(BIN)/mlflow ui --backend-store-uri file:./mlruns --port 5000
+mlflow-ui: install ## Open the MLflow tracking UI on :5001 (runs are written by every stage)
+	@echo "MLflow UI at http://127.0.0.1:5001 — Ctrl-C to stop"
+	$(BIN)/mlflow ui --backend-store-uri file:./mlruns --port 5001
 
 perf-check: install ## Score the live endpoint against the training baseline
 	$(PY) -m mlops.cli perf-check --endpoint $(API_URL)

@@ -1,0 +1,40 @@
+{
+  "run_id": "20260829T055709-cee88f",
+  "run_name": "evaluate",
+  "experiment": "catsdogs",
+  "status": "FINISHED",
+  "started_at": "2026-08-29T05:57:09+00:00",
+  "ended_at": "2026-08-29T05:57:11+00:00",
+  "duration_seconds": 1.466,
+  "params": {
+    "threshold": "0.5",
+    "split": "test"
+  },
+  "tags": {
+    "stage": "evaluate",
+    "split": "test",
+    "model_type": "logreg",
+    "checkpoint_id": "28f9b839c91b",
+    "model_trained_at": "2026-08-29T05:57:06+00:00",
+    "mlflow_model_logged": "true"
+  },
+  "metrics": {
+    "test_accuracy": 0.7818181818181819,
+    "test_precision": 0.7666666666666667,
+    "test_recall": 0.8214285714285714,
+    "test_f1": 0.7931034482758621,
+    "test_roc_auc": 0.8637566137566137,
+    "test_log_loss": 0.5154667450902906,
+    "test_samples": 55.0
+  },
+  "metric_history": {},
+  "artifacts": [
+    "evaluation/confusion_matrix.png",
+    "evaluation/roc_curve.png",
+    "evaluation/classification_report.txt",
+    "evaluation/model_card.md",
+    "evaluation/baseline.json"
+  ],
+  "backend": "mlflow+file",
+  "mlflow_run_id": "0b9f4a16c67c43078ba76a7fb2f8c484"
+}
