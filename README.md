@@ -37,7 +37,7 @@ jump to its panel.
 | Model building | Metrics, curves, promotion, model card | Train · Evaluate · Apply promotion gate |
 | Experiment tracking | Runs, params, metrics, artifacts | Click any run for its detail |
 | Inference API | Live endpoint exercise | `GET /health` `/ready` `/model-info` `/` · `POST /reload` · Predict from a file · Use a random test image |
-| Monitoring & logs | Counters, latency, pods, log stream | Send 20 predictions · Show raw `/metrics` · Fetch logs (local / kubectl / in-cluster) · Collect & archive cluster logs |
+| Monitoring & logs | Counters, latency, containers, log stream | Send 20 predictions · Show raw `/metrics` · Fetch logs (local / docker) · Collect & archive container logs |
 | Performance tracking | Live-vs-baseline scoring | Run performance check |
 | Deployment | Manifests, workflows, Docker files | Click any file to read it |
 
@@ -194,34 +194,34 @@ exercises the deployed container, its preprocessing, its threshold and its
 checkpoint together, catching failures an offline metric cannot — a stale image tag,
 a checkpoint that never got baked in, a normalisation mismatch.
 
-**Cluster log collection** has two backends. Outside the cluster it shells out to
-`kubectl logs`. Inside the cluster it calls the Kubernetes API over HTTPS with the
-pod's own service-account token, so no `kubectl` binary is needed in the image —
-that would add 50 MB and a second auth path to keep working. `k8s/02-rbac.yaml`
-grants the narrowest Role that supports it: read-only, on `pods` and `pods/log`, in
-one namespace.
+**Log collection** uses two approaches the dashboard can read:
+
+- Outside a containerised runtime the dashboard tails the local JSONL log files.
+- When running the stack via Docker Compose the dashboard reads container status
+  and `docker logs` output from the host Docker daemon.
+
+This keeps the dashboard free of any Kubernetes dependencies: you can start the
+stack with Docker and get live logs without `kubectl`.
 
 ---
 
-## Deploying to minikube
+## Deploying locally with Docker Compose
 
 The container is deployed **after** training, so the image carries the model.
 
+Start the stack locally with Compose (API, dashboard, Prometheus):
+
 ```bash
 make pipeline        # train first — the image needs artifacts/model.pkl
-make minikube-up     # start the cluster, create the namespace
-make k8s-deploy      # build the image, load it into minikube, apply k8s/, wait
-make k8s-urls        # print the API and dashboard URLs
-make k8s-smoke       # health + a real prediction against the deployed service
-make k8s-logs        # tail every pod
+make compose-up     # build and start the API, dashboard and Prometheus
 ```
 
-The dashboard runs inside the cluster and its monitoring panel keeps working there:
-set the log source to *in-cluster* and it reads pod logs through the Kubernetes API.
+The dashboard will be available at http://127.0.0.1:8501 and reads container
+status and logs from Docker. Use `make compose-down` to stop and remove the
+stack.
 
-Manifests: namespace, ConfigMap, RBAC, API Deployment (2 replicas, three probes,
-read-only root filesystem, non-root uid 10001, dropped capabilities) + NodePort
-Service, dashboard Deployment + NodePort Service.
+Manifests: optional Kubernetes manifests live in the `k8s/` folder for reference
+only; the project defaults to Docker Compose for local development and verification.
 
 The dashboard runs a single replica on purpose: it holds background-job state in
 memory, so a second replica would answer half the status polls with "no such job".
@@ -235,21 +235,18 @@ promotion gate (a failing gate fails the build) → start the API and smoke test
 run the performance check → build the image with that model baked in → smoke test
 the built container → Trivy scan → push to GHCR.
 
-**`cd.yml`** — trains, builds inside minikube's own Docker daemon, applies the
-manifests, waits for both rollouts, asserts the dashboard's service account can
-actually read pod logs, smoke tests the API, scores it against the baseline, and
-collects pod logs and events as run artifacts. Rolls back on failure.
+**`cd.yml`** — trains, builds the image, runs the stack with Docker Compose for
+verification, smoke tests the API, scores it against the baseline, collects
+compose logs and attaches them to the run. Rolls back on failure when present.
 
 `cd.yml` triggers on `push` to main and `workflow_dispatch` — deliberately *not*
 `workflow_run` chained to CI, because a chained trigger only fires when the workflow
 file already exists on the default branch, which is precisely when someone setting
 the project up for the first time will conclude CD is broken.
 
-Run it with `deploy_target: ephemeral` (default, hosted runner, cluster destroyed
-with the VM — this verifies the manifests) or `self-hosted` (a runner on the machine
-that owns a persistent cluster — this actually deploys). The summary says which one
-happened, because a pipeline that reports "deployed" after tearing down the cluster
-manufactures confidence rather than evidence.
+`cd.yml` runs verification with Docker Compose by default. Optionally the workflow
+can target a self-hosted runner (for example `naveen-macbook-air`) that pulls the
+built image and updates a local Compose stack to achieve a live deployment.
 
 ---
 
@@ -269,10 +266,10 @@ Every test builds its own project root under a temporary directory, so running t
 can never destroy a trained model and no test can pass because of state a previous
 run left behind.
 
-The `kubectl` collector is tested against a stub script placed on `PATH`, so the
-real subprocess handling, argument construction and JSON parsing are exercised
-rather than mocked away. The performance checker's HTTP client is injectable, so
-the same code path runs against a Flask test client with no socket.
+The log collector is tested against a stub script placed on `PATH` so subprocess
+handling and JSON parsing are exercised rather than mocked away. The performance
+checker's HTTP client is injectable, so the same code path runs against a Flask
+test client with no socket.
 
 ---
 
@@ -319,5 +316,4 @@ docs/                    runbook, architecture, rubric mapping
 
 ## Requirements
 
-Python 3.10+. Docker and minikube only for the deployment targets. `make install`
-handles the rest.
+Python 3.10+. Docker only for the deployment targets. `make install` handles the rest.

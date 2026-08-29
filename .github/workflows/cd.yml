@@ -22,24 +22,18 @@
 # already exists on the default branch, which is exactly when someone setting the
 # project up for the first time will conclude that CD is broken.
 
-name: CD
+name: CD (Compose)
 
 on:
   push:
     branches: [main]
     paths:
       - "src/**"
-      - "k8s/**"
       - "docker/**"
       - "configs/**"
       - ".github/workflows/cd.yml"
   workflow_dispatch:
     inputs:
-      deploy_target:
-        description: "Where to deploy"
-        type: choice
-        default: ephemeral
-        options: [ephemeral, self-hosted]
       image_tag:
         description: "Image tag to deploy"
         type: string
@@ -58,13 +52,12 @@ env:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   deploy:
-    name: Deploy to minikube
-    # `github.event.inputs.deploy_target == 'self-hosted'` swaps this for a runner
-    # attached to the machine that hosts the long-lived cluster.
-    runs-on: ${{ github.event.inputs.deploy_target == 'self-hosted' && 'self-hosted' || 'ubuntu-latest' }}
+    name: Deploy with Docker Compose
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -79,9 +72,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # The image bakes in the checkpoint, so the model has to exist before the
-      # build. Training here rather than pulling a CI artifact keeps this workflow
-      # runnable on its own.
       - name: Train the model
         env:
           PYTHONPATH: ${{ github.workspace }}/src
@@ -92,74 +82,23 @@ jobs:
           python -m mlops.cli evaluate
           python -m mlops.cli promote
 
-      - name: Start minikube
-        uses: medyagh/setup-minikube@v0.0.19
-        with:
-          cpus: 2
-          memory: 4000m
-
-      - name: Build the image inside the cluster's Docker daemon
-        # Building against minikube's own daemon means the image is already on the
-        # node, so `imagePullPolicy: IfNotPresent` finds it and no registry is
-        # involved.
+      - name: Build and run with Docker Compose
         run: |
-          eval "$(minikube docker-env)"
-          docker build -f docker/Dockerfile -t "$IMAGE:$TAG" .
-          docker images | grep "$IMAGE"
-
-      - name: Apply the manifests
-        run: |
-          kubectl apply -f k8s/
-          kubectl -n "$NAMESPACE" get all
-
-      - name: Wait for the rollout
-        run: |
-          kubectl -n "$NAMESPACE" rollout status deployment/catsdogs-api --timeout=240s
-          kubectl -n "$NAMESPACE" rollout status deployment/catsdogs-ui  --timeout=240s
-          kubectl -n "$NAMESPACE" get pods -o wide
-
-      - name: Verify RBAC lets the dashboard read pod logs
-        # The monitoring panel depends on this permission. Asserting it here means
-        # a broken Role fails the deploy instead of silently producing an empty
-        # log view that looks like "no traffic yet".
-        run: |
-          kubectl -n "$NAMESPACE" auth can-i get pods/log \
-            --as=system:serviceaccount:$NAMESPACE:catsdogs-ui | grep -q yes
-          echo "the dashboard service account can read pod logs"
+          docker compose -f docker/docker-compose.yml up --build -d
+          bash scripts/wait_for.sh http://127.0.0.1:8000/health 120
 
       - name: Smoke test the deployed service
         run: |
-          API_URL=$(minikube service catsdogs-api -n "$NAMESPACE" --url)
-          echo "API at $API_URL"
-          bash scripts/wait_for.sh "$API_URL/health" 60
-          bash scripts/smoke_test.sh "$API_URL"
+          bash scripts/smoke_test.sh http://127.0.0.1:8000
+          python -m mlops.cli perf-check --endpoint http://127.0.0.1:8000 --sample-size 40
 
-      - name: Score the deployed model against its training baseline
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: |
-          API_URL=$(minikube service catsdogs-api -n "$NAMESPACE" --url)
-          python -m mlops.cli perf-check --endpoint "$API_URL" --sample-size 40
-
-      - name: Check the dashboard is serving
-        run: |
-          UI_URL=$(minikube service catsdogs-ui -n "$NAMESPACE" --url)
-          bash scripts/wait_for.sh "$UI_URL/health" 60
-          curl -fsS "$UI_URL/api/status" > /dev/null
-          echo "dashboard at $UI_URL"
-
-      - name: Collect cluster logs
-        # Proves the log path the dashboard uses actually returns data from this
-        # cluster, and leaves the output attached to the run.
+      - name: Collect compose logs
         if: always()
         run: |
           mkdir -p deploy-logs
-          kubectl -n "$NAMESPACE" get pods -o wide > deploy-logs/pods.txt 2>&1 || true
-          kubectl -n "$NAMESPACE" describe deployments > deploy-logs/deployments.txt 2>&1 || true
-          kubectl -n "$NAMESPACE" logs -l app.kubernetes.io/part-of=mlops-catsdogs \
-            --all-containers=true --tail=300 > deploy-logs/pod-logs.txt 2>&1 || true
-          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp > deploy-logs/events.txt 2>&1 || true
-          tail -40 deploy-logs/pod-logs.txt
+          docker compose -f docker/docker-compose.yml ps > deploy-logs/ps.txt 2>&1 || true
+          docker compose -f docker/docker-compose.yml logs --no-color --tail=500 > deploy-logs/compose-logs.txt 2>&1 || true
+          tail -40 deploy-logs/compose-logs.txt || true
 
       - name: Upload deployment evidence
         if: always()
@@ -171,27 +110,57 @@ jobs:
             artifacts/metrics/
           retention-days: 14
 
-      - name: Summarise
-        if: always()
-        run: |
-          {
-            echo "## Deployment"
-            echo ""
-            if [ "${{ github.event.inputs.deploy_target }}" = "self-hosted" ]; then
-              echo "Target: **persistent minikube on the self-hosted runner**."
-            else
-              echo "Target: **ephemeral minikube on a hosted runner**. This verifies the"
-              echo "manifests, image and rollout; the cluster is destroyed with the runner."
-            fi
-            echo ""
-            echo '```'
-            kubectl -n "$NAMESPACE" get pods 2>&1 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+  deploy-to-naveen-macbook-air:
+    name: Deploy to naveen-macbook-air (self-hosted)
+    needs: deploy
+    runs-on: self-hosted
+    if: github.event.inputs.image_tag != 'skip'
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Roll back a failed deployment
-        if: failure()
+      - name: Build and push image to GHCR
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE }}:${{ env.TAG }}
+
+      - name: Deploy on naveen-macbook-air (local runner)
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE }}:${{ env.TAG }}
         run: |
-          kubectl -n "$NAMESPACE" rollout undo deployment/catsdogs-api || true
-          kubectl -n "$NAMESPACE" rollout undo deployment/catsdogs-ui || true
-          kubectl -n "$NAMESPACE" get pods
+          set -euo pipefail
+          echo "Pulling $IMAGE"
+          if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
+            echo "Logging into ghcr.io"
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin || true
+          fi
+          docker pull "$IMAGE" || true
+          echo "Tagging to mlops-catsdogs:local for Compose"
+          docker tag "$IMAGE" mlops-catsdogs:local || true
+          DEPLOY_DIR="${{ secrets.NAVEEN_COMPOSE_DIR }}"
+          if [ -z "$DEPLOY_DIR" ]; then
+            DEPLOY_DIR=~/mlops-catsdogs
+          fi
+          echo "Changing to $DEPLOY_DIR"
+          cd "$DEPLOY_DIR" || true
+          echo "Updating compose stack"
+          docker compose -f docker/docker-compose.yml pull || true
+          docker compose -f docker/docker-compose.yml up -d --remove-orphans
+          docker compose -f docker/docker-compose.yml ps
+
+      - name: Upload deploy log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: naveen-deploy-log
+          path: |
+            deploy-logs/
+          retention-days: 7
+
+# Notes: this job is intended to run on a self-hosted runner registered as
+# `naveen-macbook-air` (ensure the runner labels include `self-hosted` and that
+# the runner can reach GHCR). Repository secrets you may want to set:
+# - GHCR_PAT: Personal access token with `read:packages` (required if packages are private)
+# - NAVEEN_COMPOSE_DIR: path to the repository on the runner (defaults to ~/mlops-catsdogs)

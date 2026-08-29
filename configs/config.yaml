@@ -106,7 +106,7 @@ monitoring:
     min_accuracy: 0.70
     max_accuracy_drop: 0.10
   kubernetes:
-    enabled: true
+    enabled: false
     namespace: mlops
     label_selector: app.kubernetes.io/part-of=mlops-catsdogs
     tail_lines: 200

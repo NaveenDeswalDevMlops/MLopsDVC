@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/naveendeswal/Documents/BITS PILANI/Semester 3/Mlops/Assignment2/github/mlops-catsdogs/mlruns/753744129498706703/63b7ec5ba9984e79b9fa4fa518b8bddb/artifacts
+end_time: 1788018087102
+entry_point_name: ''
+experiment_id: '753744129498706703'
+lifecycle_stage: active
+run_id: 63b7ec5ba9984e79b9fa4fa518b8bddb
+run_name: evaluate
+run_uuid: 63b7ec5ba9984e79b9fa4fa518b8bddb
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1788018085683
+status: 3
+tags: []
+user_id: naveendeswal

@@ -104,16 +104,15 @@ Then cut to a terminal:
 
 ```bash
 make docker-build
-make k8s-deploy
-make k8s-urls
-make k8s-smoke
+make compose-up
 ```
 
-Open the cluster dashboard URL, go to **Monitoring & logs**, set the log source to
-**in-cluster** and click **Fetch logs** — pod logs read through the Kubernetes API
-with the pod's own service-account token, no kubectl binary in the image.
+Open http://127.0.0.1:8501, go to **Monitoring & logs**, set the log source to
+**docker** and click **Fetch logs** — the dashboard reads `docker ps`/`docker logs`
+from the host so no Kubernetes tooling is required.
 
-Finish on `kubectl -n mlops get pods` showing both deployments running.
+Finish by showing `docker compose -f docker/docker-compose.yml ps` with the API
+and dashboard services running.
 
 ---
 
@@ -125,3 +124,6 @@ If you have time, this is the tightest way to show CI/CD end to end:
 2. Commit and push — CI lints, tests, trains, gates, smoke tests and publishes.
 3. CD builds inside minikube, applies the manifests and waits for the rollout.
 4. Back in the dashboard, click **POST /reload** and show the new `trained_at`.
+Note: CI builds the image and the CD workflow verifies it (the default CD
+run uses Docker Compose for verification rather than a local Kubernetes
+cluster). If you keep a minikube-based CD in your fork, adapt this step.

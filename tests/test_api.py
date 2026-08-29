@@ -8,7 +8,6 @@ a socket.
 from __future__ import annotations
 
 import base64
-import json
 
 from helpers import TempProject, prepared_project, sample_image_bytes, trained_project
 from mlops.serving.app import create_app

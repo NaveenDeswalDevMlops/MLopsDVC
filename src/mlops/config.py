@@ -172,7 +172,7 @@ class Config:
                 for key, value in node.items():
                     walk(value, f"{prefix}.{key}" if prefix else str(key))
             else:
-                flat[prefix] = json.dumps(node) if isinstance(node, (list, tuple)) else str(node)
+                flat[prefix] = json.dumps(node) if isinstance(node, list | tuple) else str(node)
 
         walk(self.raw, "")
         return flat

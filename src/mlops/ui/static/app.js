@@ -566,39 +566,35 @@
     return getJSON("/api/logs?source=" + encodeURIComponent(source)).then(renderLogs)
       .catch(function (error) { toast(String(error.message || error), "fail"); });
   }
-
-  function refreshPods() {
-    return getJSON("/api/k8s/pods").then(function (data) {
-      $("#pods-source").textContent = data.source || "—";
-      var body = $("#pods-table").querySelector("tbody");
+  function refreshContainers() {
+    return getJSON("/api/containers").then(function (data) {
+      $("#containers-source").textContent = data.source || "—";
+      var body = $("#containers-table").querySelector("tbody");
       clear(body);
-      var pods = data.pods || [];
-      if (!pods.length) {
+      var containers = data.containers || data.pods || [];
+      if (!containers.length) {
         var empty = el("tr");
         var cell = el("td", null, data.error
           ? data.error
-          : "No pods visible. Deploy with `make k8s-deploy`, or run the dashboard inside the cluster.");
-        cell.colSpan = 6;
+          : "No containers visible. Start the stack with `docker compose -f docker/docker-compose.yml up`.");
+        cell.colSpan = 3;
         empty.appendChild(cell);
         body.appendChild(empty);
         return;
       }
-      pods.forEach(function (pod) {
+      containers.forEach(function (c) {
         var row = el("tr");
-        row.appendChild(el("td", null, pod.name));
-        row.appendChild(el("td", null, pod.phase));
-        row.appendChild(el("td", null, pod.ready ? "yes" : "no"));
-        row.appendChild(el("td", "num", pod.restarts));
-        row.appendChild(el("td", null, pod.node || "—"));
-        row.appendChild(el("td", null, pod.image || "—"));
+        row.appendChild(el("td", null, c.name));
+        row.appendChild(el("td", null, c.status || "—"));
+        row.appendChild(el("td", null, c.image || "—"));
         body.appendChild(row);
       });
-    }).catch(function () { /* pods are optional */ });
+    }).catch(function () { /* containers are optional */ });
   }
 
   function refreshDeployment() {
     return getJSON("/api/deployment").then(function (data) {
-      [["#k8s-list", data.k8s], ["#workflow-list", data.workflows], ["#docker-list", data.docker]]
+      [["#workflow-list", data.workflows], ["#docker-list", data.docker]]
         .forEach(function (pair) {
           var list = $(pair[0]);
           clear(list);
@@ -782,9 +778,7 @@
     $("#btn-logs").addEventListener("click", refreshLogs);
     $("#log-source").addEventListener("change", refreshLogs);
 
-    bindAction("#btn-collect-k8s", "collect-k8s-logs", "/api/actions/collect-k8s-logs", function () {
-      return { source: $("#log-source").value };
-    });
+    // The dashboard supports Docker and local file tails as log sources.
 
     // Performance panel
     bindAction("#btn-perf", "perf-check", "/api/actions/perf-check", function () {
@@ -796,7 +790,7 @@
       refreshStatus();
       refreshMetrics();
       refreshLogs();
-      refreshPods();
+      refreshContainers();
       refreshJobs();
       toast("refreshed");
     });
@@ -809,7 +803,7 @@
     refreshStatus();
     refreshMetrics();
     refreshLogs();
-    refreshPods();
+    refreshContainers();
     refreshJobs();
     refreshDeployment();
 

@@ -130,10 +130,7 @@ class Tracker:
         """
         self.config = config
         backend_setting = str(config.get("tracking.backend", "auto")).lower()
-        if use_mlflow is None:
-            wanted = backend_setting in {"auto", "mlflow"}
-        else:
-            wanted = use_mlflow
+        wanted = backend_setting in {"auto", "mlflow"} if use_mlflow is None else use_mlflow
         self._use_mlflow = bool(wanted) and mlflow_available()
         if wanted and not self._use_mlflow:
             _LOGGER.info("mlflow not importable; using the local run store only")

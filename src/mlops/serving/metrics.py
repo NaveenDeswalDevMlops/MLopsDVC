@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 LabelKey = tuple[tuple[str, str], ...]
 
@@ -196,7 +197,7 @@ class Histogram:
             return lines
         for key in sorted(self.totals):
             bucket_counts = self.counts.get(key, [0.0] * len(self.buckets))
-            for bound, count in zip(self.buckets, bucket_counts):
+            for bound, count in zip(self.buckets, bucket_counts, strict=False):
                 lines.append(
                     f"{self.name}_bucket{_render_labels(key, {'le': f'{bound:g}'})} {count:g}"
                 )
