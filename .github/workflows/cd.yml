@@ -1,5 +1,4 @@
 
-
 name: CD (Compose)
 
 on:
@@ -60,6 +59,10 @@ jobs:
         id: image
         run: |
           echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+          # Lowercase the repository owner to satisfy Docker reference rules.
+          OWNER="${{ github.repository_owner }}"
+          OWNER_LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+
           if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
             TAG=sha-${{ github.event.workflow_run.head_sha }}
             echo "Triggered by CI workflow run; using image tag $TAG"
@@ -68,10 +71,11 @@ jobs:
             echo "Using requested image tag $TAG"
           else
             TAG=local
-            echo "No image tag requested; using local" 
+            echo "No image tag requested; using local"
           fi
+
           echo "TAG=$TAG" >> $GITHUB_ENV
-          echo "IMAGE=ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE }}:$TAG" >> $GITHUB_ENV
+          echo "IMAGE=ghcr.io/$OWNER_LOWER/${{ env.IMAGE }}:$TAG" >> $GITHUB_ENV
 
       - name: Pull image (if not local) and run with Docker Compose
         run: |
@@ -85,8 +89,13 @@ jobs:
             echo "Pulling $IMAGE"
             docker pull "$IMAGE" || true
             docker tag "$IMAGE" mlops-catsdogs:local || true
+            echo "Using pulled image; starting compose without build"
+            docker compose -f docker/docker-compose.yml up -d --no-build
+          else
+            echo "Local tag requested; starting compose (may build)"
+            docker compose -f docker/docker-compose.yml up -d
           fi
-          docker compose -f docker/docker-compose.yml up -d
+
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 120
 
       - name: Smoke test the deployed service
