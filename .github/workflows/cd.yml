@@ -1,4 +1,3 @@
-
 name: CD (Compose)
 
 on:
@@ -51,18 +50,15 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      # - name: Install dependencies
-      #   if: ${{ steps.image.outputs.is_local == 'true' }}
-      #   run: |
-      #     python -m pip install --upgrade pip
-      #     pip install -r requirements.txt
       - name: Determine image to deploy
         id: image
         run: |
           echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
-          # Lowercase the repository owner to satisfy Docker reference rules.
+          # Lowercase the repository owner and repo name to satisfy Docker reference rules.
           OWNER="${{ github.repository_owner }}"
           OWNER_LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
+          REPO="${{ github.event.repository.name }}"
+          REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
 
           if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
             # Inspect the workflow_run payload to see which event triggered CI
@@ -91,7 +87,7 @@ jobs:
 
           echo "TAG=$TAG" >> $GITHUB_ENV
           echo "OWNER_LOWER=$OWNER_LOWER" >> $GITHUB_ENV
-          echo "IMAGE=ghcr.io/$OWNER_LOWER/${{ env.IMAGE }}:$TAG" >> $GITHUB_ENV
+          echo "IMAGE=ghcr.io/$OWNER_LOWER/$REPO_LOWER:$TAG" >> $GITHUB_ENV
           # Export whether we're using a local tag so later steps can conditionally build
           if [ "$TAG" = "local" ]; then
             echo "is_local=true" >> $GITHUB_OUTPUT
