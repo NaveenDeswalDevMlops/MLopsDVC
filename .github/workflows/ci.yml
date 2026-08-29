@@ -13,7 +13,7 @@ name: CI
 
 on:
   push:
-    branches: [mai, develo]
+    branches: [main, develop]
     tags: ["v*"]
   pull_request:
     branches: [main, develop]
