@@ -2,7 +2,7 @@ name: CD (Compose)
 
 on:
   push:
-    branches: [main]-l
+    branches: [main-l]
     paths:
       - "src/**"
       - "docker/**"
