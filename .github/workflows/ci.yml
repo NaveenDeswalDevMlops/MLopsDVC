@@ -100,9 +100,6 @@ jobs:
             echo "No dvc.yaml, skipping dvc repro"
           fi
 
-      # The synthetic generator keeps CI free of Kaggle credentials and an 800 MB
-      # download. Point this at `make data-kaggle` with a KAGGLE_KEY secret to run
-      # the real archive instead.
       - name: Generate dataset
         env:
           PYTHONPATH: ${{ github.workspace }}/src
@@ -123,8 +120,6 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/src
         run: python -m mlops.cli evaluate
 
-      # A non-zero exit here fails the build, so a model below the accuracy floor
-      # never reaches the image-build job.
       - name: Apply the promotion gate
         id: gate
         env:
@@ -141,22 +136,13 @@ jobs:
         run: |
           python -m mlops.cli serve-api --port 8000 &
           echo $! > api.pid
-
-          # Wait for the HTTP health endpoint first (short timeout)
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 60
-
-          # Ensure the service reports ready+model loaded before perf-check.
-          # Poll /ready and /model-info; give the app extra time to load the
-          # checkpoint if necessary.
           echo "Waiting for /ready and model to be loaded..."
           ok=0
           for i in $(seq 1 12); do
             echo "check #$i"
             status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ready || true)
             model_info=$(curl -sS http://127.0.0.1:8000/model-info || true)
-
-            # Consider the model loaded if the model-info contains an explicit
-            # model_loaded flag, or if it contains checkpoint/classes metadata.
             if [ "$status" = "200" ]; then
               if echo "$model_info" | grep -q '"model_loaded":true' || \
                  echo "$model_info" | grep -q '"checkpoint"' || \
@@ -165,27 +151,19 @@ jobs:
                 break
               fi
             fi
-
             sleep 5
           done
-
           if [ "$ok" != "1" ]; then
-            echo "Service did not become ready with model loaded. Dumping /model-info and process status:" >&2
+            echo "Service did not become ready with model loaded." >&2
             curl -sS http://127.0.0.1:8000/model-info || true
-            echo "--- process list ---" >&2
             ps -ef | sed -n '1,200p' || true
-            echo "API pid:" $(cat api.pid) || true
             kill "$(cat api.pid)" || true
             exit 1
           fi
-
           bash scripts/smoke_test.sh http://127.0.0.1:8000
           python -m mlops.cli perf-check --endpoint http://127.0.0.1:8000 --sample-size 40
           kill "$(cat api.pid)"
 
-      # The trained model is handed to the build job as an artifact rather than
-      # retrained there, so the image contains exactly the weights that just passed
-      # the gate and the smoke test.
       - name: Upload model and metrics
         uses: actions/upload-artifact@v4
         with:
@@ -229,7 +207,11 @@ jobs:
           name: model-artifacts
           path: artifacts
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to the registry (use CR_PAT if set, else GITHUB_TOKEN)
         if: ${{ github.event_name != 'pull_request' }}
@@ -251,48 +233,35 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
 
-      # Build a completely fresh image for CI/security validation.
-      # no-cache ensures old Docker/GHA dependency layers cannot be reused.
-      - name: Build
+      # Build one native CI image for validation. The final publish below creates
+      # the multi-platform manifest used by both AMD64 and Apple Silicon runners.
+      - name: Build validation image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
           push: false
           load: true
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           no-cache: true
 
-      # Verify the freshly built image actually serves before it is published.
-      # A container that fails its own health check must not become the "latest" tag.
       - name: Smoke test the image
         run: |
           IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
-
           echo "Starting image: $IMAGE"
-
           docker run -d --name catsdogs -p 8000:8000 "$IMAGE"
-
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 60
           curl -fsS http://127.0.0.1:8000/ready
           curl -fsS http://127.0.0.1:8000/model-info
-
           docker rm -f catsdogs
 
-      # Scan the exact SHA-tagged image that was just built.
-      # Do not use the :latest or :main registry image because those may refer
-      # to an older published image.
-      #
-      # Trivy is run as a Docker container, so there is no need for `trivy clean`
-      # on the GitHub runner.
       - name: Scan for vulnerabilities
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
           IMAGE_LOWER=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
-
           echo "Scanning $IMAGE_LOWER for vulnerabilities"
-
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:latest image \
@@ -302,18 +271,17 @@ jobs:
             --severity CRITICAL,HIGH \
             "$IMAGE_LOWER"
 
-      # Publish only after the fresh image passes:
-      # 1. model quality gate
-      # 2. API smoke test
-      # 3. image smoke test
-      # 4. vulnerability scan
-      - name: Push
+      # Publish the exact same source/model as the validated image for both
+      # architectures. GHCR creates a manifest so Docker Desktop on Apple Silicon
+      # automatically selects linux/arm64.
+      - name: Push multi-platform image
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
