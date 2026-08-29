@@ -2,7 +2,7 @@ name: CD (Deploy on macbook)
 
 on:
   push:
-    branches: [main]
+    branches: [main]-l
     paths:
       - "src/**"
       - "docker/**"
@@ -142,35 +142,49 @@ jobs:
   deploy-to-naveen-macbook-air:
     name: Deploy to naveen-macbook-air (self-hosted)
     runs-on: self-hosted
-    if: github.event.inputs.image_tag != 'skip'
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'CI' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != 'skip')
     steps:
       - uses: actions/checkout@v4
-
-      - name: Build image (no push)
-        run: |
-          set -euo pipefail
-          docker build -t mlops-catsdogs:local -f docker/Dockerfile .
 
       - name: Deploy on naveen-macbook-air (local runner)
         run: |
           set -euo pipefail
           OWNER="${{ github.repository_owner }}"
           OWNER_LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          IMAGE=ghcr.io/$OWNER_LOWER/${{ env.IMAGE }}:${{ env.TAG }}
+          REPO="${{ github.event.repository.name }}"
+          REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+
+          # Determine tag: prefer CI's head_sha when triggered by workflow_run
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ] && [ -n "${{ github.event.workflow_run.head_sha }}" ]; then
+            TAG=sha-${{ github.event.workflow_run.head_sha }}
+            echo "Triggered by CI; using tag $TAG"
+          elif [ -n "${{ github.event.inputs.image_tag || '' }}" ]; then
+            TAG=${{ github.event.inputs.image_tag }}
+            echo "Using requested image tag $TAG"
+          else
+            TAG=local
+            echo "No image tag requested; using local"
+          fi
+
+          IMAGE=ghcr.io/$OWNER_LOWER/$REPO_LOWER:$TAG
           echo "IMAGE=$IMAGE"
+
           if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
             echo "Logging into ghcr.io"
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "$OWNER_LOWER" --password-stdin || true
           fi
-          if [ "${{ env.TAG }}" != "local" ]; then
-            echo "Tagging and pushing $IMAGE"
-            docker tag mlops-catsdogs:local "$IMAGE" || true
-            docker push "$IMAGE" || true
+
+          if [ "$TAG" != "local" ]; then
+            echo "Pulling $IMAGE"
             docker pull "$IMAGE" || true
             docker tag "$IMAGE" mlops-catsdogs:local || true
+            echo "Using pulled image"
           else
-            echo "Using local image"
+            echo "Local tag requested; ensure mlops-catsdogs:local exists on the runner"
           fi
+
           DEPLOY_DIR="${{ secrets.NAVEEN_COMPOSE_DIR }}"
           if [ -z "$DEPLOY_DIR" ]; then
             DEPLOY_DIR=~/mlops-catsdogs
