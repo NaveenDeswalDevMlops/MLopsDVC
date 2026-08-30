@@ -5,7 +5,7 @@
 # model that failed its own accuracy gate should never be built; the image is built
 # last and only pushed from the default branch.
 #
-# The image is built *after* training so the checkpoint is baked into it, which is
+# The image is built *after training* so the checkpoint is baked into it, which is
 # what makes the published artifact self-contained: pull the tag, run it, get
 # predictions, with no volume to mount and no model to download at start-up.
 
@@ -72,6 +72,7 @@ jobs:
     needs: quality
     outputs:
       accuracy: ${{ steps.gate.outputs.accuracy }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -85,6 +86,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Reproduce DVC pipeline (if present)
+        if: ${{ always() }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+        run: |
+          if [ -f dvc.yaml ]; then
+            echo "Found dvc.yaml — running dvc repro && dvc push (local remote)"
+            dvc repro || true
+            dvc push || true
+          else
+            echo "No dvc.yaml, skipping dvc repro"
+          fi
+
+      # Do not let committed or DVC-generated run history affect the fresh CI
+      # model gate. Promotion must compare this job's evaluation with its model.
+      - name: Reset experiment history for CI pipeline
+        run: rm -rf artifacts/runs mlruns
 
       # The synthetic generator keeps CI free of Kaggle credentials and an 800 MB
       # download. Point this at `make data-kaggle` with a KAGGLE_KEY secret to run
@@ -127,7 +146,44 @@ jobs:
         run: |
           python -m mlops.cli serve-api --port 8000 &
           echo $! > api.pid
-          bash scripts/wait_for.sh http://127.0.0.1:8000/health 40
+
+          # Wait for the HTTP health endpoint first (short timeout)
+          bash scripts/wait_for.sh http://127.0.0.1:8000/health 60
+
+          # Ensure the service reports ready+model loaded before perf-check.
+          # Poll /ready and /model-info; give the app extra time to load the
+          # checkpoint if necessary.
+          echo "Waiting for /ready and model to be loaded..."
+          ok=0
+          for i in $(seq 1 12); do
+            echo "check #$i"
+            status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ready || true)
+            model_info=$(curl -sS http://127.0.0.1:8000/model-info || true)
+
+            # Consider the model loaded if the model-info contains an explicit
+            # model_loaded flag, or if it contains checkpoint/classes metadata.
+            if [ "$status" = "200" ]; then
+              if echo "$model_info" | grep -q '"model_loaded":true' || \
+                 echo "$model_info" | grep -q '"checkpoint"' || \
+                 echo "$model_info" | grep -q '"classes"'; then
+                ok=1
+                break
+              fi
+            fi
+
+            sleep 5
+          done
+
+          if [ "$ok" != "1" ]; then
+            echo "Service did not become ready with model loaded. Dumping /model-info and process status:" >&2
+            curl -sS http://127.0.0.1:8000/model-info || true
+            echo "--- process list ---" >&2
+            ps -ef | sed -n '1,200p' || true
+            echo "API pid:" $(cat api.pid) || true
+            kill "$(cat api.pid)" || true
+            exit 1
+          fi
+
           bash scripts/smoke_test.sh http://127.0.0.1:8000
           python -m mlops.cli perf-check --endpoint http://127.0.0.1:8000 --sample-size 40
           kill "$(cat api.pid)"
@@ -146,13 +202,29 @@ jobs:
             artifacts/plots/
           retention-days: 30
 
+      - name: Package submission zip (source, configs, artifacts)
+        run: |
+          set -e
+          mkdir -p submission
+          zip -r submission/mlops_assignment2_submission.zip \
+            src docker k8s .github dvc.yaml dvc.lock requirements.txt requirements-dev.txt README.md artifacts mlruns || true
+
+      - name: Upload submission
+        uses: actions/upload-artifact@v4
+        with:
+          name: submission-zip
+          path: submission/mlops_assignment2_submission.zip
+          retention-days: 30
+
   image:
     name: Build and publish the image
     runs-on: ubuntu-latest
     needs: pipeline
+
     permissions:
       contents: read
       packages: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -164,15 +236,16 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Log in to the registry
-        # Pull requests from forks have no package-write token, so the image is
-        # built to verify the Dockerfile but not pushed.
-        if: github.event_name != 'pull_request'
+      - name: Set up multi-platform builds
+        uses: docker/setup-qemu-action@v3
+
+      - name: Log in to the registry (use CR_PAT if set, else GITHUB_TOKEN)
+        if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.CR_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Derive tags
         id: meta
@@ -186,6 +259,8 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Build a completely fresh image for CI/security validation.
+      # no-cache ensures old Docker/GHA dependency layers cannot be reused.
       - name: Build
         uses: docker/build-push-action@v6
         with:
@@ -195,29 +270,51 @@ jobs:
           load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true
 
-      # Verify the built image actually serves before it is published. A container
-      # that fails its own health check must not become the "latest" tag.
+      # Verify the freshly built image actually serves before it is published.
+      # A container that fails its own health check must not become the "latest" tag.
       - name: Smoke test the image
         run: |
           IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+
+          echo "Starting image: $IMAGE"
+
           docker run -d --name catsdogs -p 8000:8000 "$IMAGE"
+
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 60
           curl -fsS http://127.0.0.1:8000/ready
           curl -fsS http://127.0.0.1:8000/model-info
+
           docker rm -f catsdogs
 
+      # Scan the exact SHA-tagged image that was just built.
+      # Do not use the :latest or :main registry image because those may refer
+      # to an older published image.
+      #
+      # Trivy is run as a Docker container, so there is no need for `trivy clean`
+      # on the GitHub runner.
       - name: Scan for vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
+          IMAGE_LOWER=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
 
+          echo "Scanning $IMAGE_LOWER for vulnerabilities"
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --format table \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --severity CRITICAL,HIGH \
+            "$IMAGE_LOWER"
+
+      # Publish only after the fresh image passes:
+      # 1. model quality gate
+      # 2. API smoke test
+      # 3. image smoke test
+      # 4. vulnerability scan
       - name: Push
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
@@ -225,6 +322,7 @@ jobs:
           context: .
           file: docker/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

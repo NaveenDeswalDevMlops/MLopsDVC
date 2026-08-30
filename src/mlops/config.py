@@ -172,7 +172,7 @@ class Config:
                 for key, value in node.items():
                     walk(value, f"{prefix}.{key}" if prefix else str(key))
             else:
-                flat[prefix] = json.dumps(node) if isinstance(node, (list, tuple)) else str(node)
+                flat[prefix] = json.dumps(node) if isinstance(node, list | tuple) else str(node)
 
         walk(self.raw, "")
         return flat
@@ -183,6 +183,17 @@ class Config:
             "paths.data_root",
             "paths.raw_dir",
             "paths.processed_dir",
+            "paths.artifacts_dir",
+            "paths.metrics_dir",
+            "paths.plots_dir",
+            "paths.runs_dir",
+            "paths.logs_dir",
+        ):
+            self.path(key).mkdir(parents=True, exist_ok=True)
+
+    def ensure_runtime_dirs(self) -> None:
+        """Create only directories needed by serving processes."""
+        for key in (
             "paths.artifacts_dir",
             "paths.metrics_dir",
             "paths.plots_dir",

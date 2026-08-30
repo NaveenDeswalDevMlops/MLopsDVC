@@ -29,7 +29,7 @@ from flask import Flask, Response, jsonify, render_template, request, send_file
 from mlops.config import Config, get_config
 from mlops.logging_setup import configure_logging, get_logger
 from mlops.ui.jobs import Job, JobRunner
-from mlops.ui.state import api_health, plot_files, project_status, stage_status
+from mlops.ui.state import api_health, project_status, stage_status
 
 _LOGGER = get_logger(__name__)
 
@@ -56,7 +56,7 @@ def create_ui_app(config: Config | None = None) -> Flask:
         The configured Flask app, with ``app.jobs`` attached for tests.
     """
     config = config or get_config()
-    config.ensure_dirs()
+    config.ensure_runtime_dirs()
     configure_logging(
         level=str(config.get("logging.level", "INFO")),
         log_file=config.path("monitoring.ui_log_file"),
@@ -298,29 +298,29 @@ def create_ui_app(config: Config | None = None) -> Flask:
         Returns:
             A log bundle, plus which sources are currently possible.
         """
-        from mlops.monitoring.log_collector import collect, in_cluster, kubectl_available
+        from mlops.monitoring.log_collector import collect, docker_available
 
         source = request.args.get("source", "auto")
         tail = request.args.get("tail")
         bundle = collect(config, source=source, tail=int(tail) if tail else None)
         payload = bundle.to_dict()
         payload["capabilities"] = {
-            "kubectl": kubectl_available(),
-            "in_cluster": in_cluster(),
-            "namespace": str(config.get("monitoring.kubernetes.namespace", "mlops")),
+            "docker": docker_available(),
         }
         return jsonify(payload)
 
-    @app.get("/api/k8s/pods")
-    def api_k8s_pods() -> Response:
-        """List the deployment's pods.
+    @app.get("/api/containers")
+    def api_containers() -> Response:
+        """List running containers for the deployment.
 
         Returns:
-            Pod summaries and which access path was used.
+            Container summaries and which access path was used.
         """
-        from mlops.monitoring.log_collector import list_pods
+        from mlops.monitoring.log_collector import list_containers
 
-        return jsonify(list_pods(config))
+        return jsonify(list_containers(config))
+
+    # Kubernetes-specific endpoints removed — the UI is Docker-only.
 
     @app.get("/api/deployment")
     def api_deployment() -> Response:
@@ -340,11 +340,10 @@ def create_ui_app(config: Config | None = None) -> Flask:
 
         return jsonify(
             {
-                "k8s": _listing("k8s", "*.yaml"),
+                "k8s": [],
                 "workflows": _listing(".github/workflows", "*.yml"),
                 "docker": _listing("docker", "*"),
                 "image": str(config.get("deployment.image", "mlops-catsdogs:local")),
-                "namespace": str(config.get("monitoring.kubernetes.namespace", "mlops")),
             }
         )
 
@@ -766,22 +765,18 @@ def create_ui_app(config: Config | None = None) -> Flask:
 
         return _submit("perf-check", action)
 
-    @app.post("/api/actions/collect-k8s-logs")
-    def action_collect_k8s_logs() -> tuple[Response, int]:
-        """Pull logs from the cluster and merge them into the monitoring view.
-
-        Returns:
-            The started job.
-        """
+    @app.post("/api/actions/collect-docker-logs")
+    def action_collect_docker_logs() -> tuple[Response, int]:
+        """Pull logs from local Docker containers and merge them into the monitoring view."""
         document = request.get_json(silent=True) or {}
-        source = str(document.get("source", "auto"))
+        source = str(document.get("source", "docker"))
 
         def action(_job: Job) -> Any:
             from mlops.monitoring.log_collector import collect
 
             bundle = collect(config, source=source)
             payload = bundle.to_dict()
-            archive = config.path("paths.logs_dir") / "cluster-logs.jsonl"
+            archive = config.path("paths.logs_dir") / "docker-logs.jsonl"
             archive.parent.mkdir(parents=True, exist_ok=True)
             with archive.open("w", encoding="utf-8") as handle:
                 for record in bundle.records:
@@ -790,7 +785,7 @@ def create_ui_app(config: Config | None = None) -> Flask:
             payload.pop("records", None)
             return payload
 
-        return _submit("collect-k8s-logs", action)
+        return _submit("collect-docker-logs", action)
 
     _LOGGER.info("dashboard ready", extra={"api_url": _api_base(config)})
     return app

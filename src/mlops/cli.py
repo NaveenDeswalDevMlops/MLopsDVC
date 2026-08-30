@@ -35,7 +35,10 @@ def _bootstrap(args: argparse.Namespace) -> Any:
         log_file=config.path("monitoring.log_file"),
         force=True,
     )
-    config.ensure_dirs()
+    if getattr(args, "command", "") in {"serve-api", "serve-ui"}:
+        config.ensure_runtime_dirs()
+    else:
+        config.ensure_dirs()
     return config
 
 
@@ -291,8 +294,13 @@ def build_parser() -> argparse.ArgumentParser:
     perf.add_argument("--no-mlflow", action="store_true")
     perf.set_defaults(func=cmd_perf_check)
 
-    logs = sub.add_parser("collect-logs", help="collect logs from local files or minikube")
-    logs.add_argument("--source", default="auto", choices=["auto", "local", "kubectl", "in-cluster"])
+    logs = sub.add_parser("collect-logs", help="collect logs from local files or docker")
+    logs.add_argument(
+        "--source",
+        default="auto",
+        choices=["auto", "local", "docker"],
+        help="log source: auto, local files, or docker container logs",
+    )
     logs.add_argument("--tail", type=int, default=None)
     logs.set_defaults(func=cmd_collect_logs)
 
