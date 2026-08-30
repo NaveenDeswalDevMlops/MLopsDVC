@@ -1,6 +1,6 @@
 {
   "decided_at": "2026-08-29T15:41:01+00:00",
-  "threshold": 0.75,
+  "threshold": 0.55,
   "registered_model_name": "catsdogs-classifier",
   "promoted": true,
   "reason": "accuracy 0.7818 >= threshold 0.7500",
