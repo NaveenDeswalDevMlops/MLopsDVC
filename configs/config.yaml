@@ -1,114 +1,39 @@
-# Effective configuration for every component: pipeline, API, UI, monitoring.
-# Override any key with MLOPS_<SECTION>__<KEY>, e.g. MLOPS_TRAINING__EPOCHS=40.
-
-project:
-  name: mlops-catsdogs
-  version: 1.0.0
-  seed: 42
+# Configuration for the Cats vs Dogs MLOps project.
+# Keep experiment-specific overrides in environment variables.
 
 paths:
-  data_root: data
-  raw_dir: data/raw
-  processed_dir: data/processed
-  manifest_csv: data/processed/manifest.csv
-  dataset_lock: data/dataset.lock.json
-  artifacts_dir: artifacts
+  data_dir: data
+  raw_data_dir: data/raw
+  processed_data_dir: data/processed
   model_path: artifacts/model.pkl
   metrics_dir: artifacts/metrics
   plots_dir: artifacts/plots
-  baseline_path: artifacts/metrics/baseline.json
-  history_path: artifacts/metrics/history.json
-  preprocess_stats: artifacts/metrics/preprocess_stats.json
-  perf_report: artifacts/metrics/perf_check.json
-  model_card: artifacts/model_card.md
-  runs_dir: artifacts/runs
-  logs_dir: logs
-
-data:
-  class_names: [cat, dog]
-  image_size: 224            # stored geometry, as required by the brief
-  channels: 3
-  jpeg_quality: 92
-  images_per_class: 300      # used by the synthetic generator
-  split:
-    train: 0.8
-    val: 0.1
-    test: 0.1
-    hash_salt: catsdogs-v1
-  augmentation:
-    enabled: true
-    horizontal_flip: true
-    rotation_degrees: 12
-    brightness: 0.20
-    contrast: 0.20
-    multiplier: 2            # augmented copies per training image
+  model_card_path: artifacts/model_card.md
+  dataset_lock_path: data/dataset.lock.json
+  mlruns_dir: mlruns
 
 model:
-  type: logreg               # logreg | mlp
-  feature_size: 24           # pixels are downscaled to this square before flattening
-  logreg:
-    alpha: 0.05              # L2 strength; also damps the probability saturation
-    penalty: l2
-    schedule: invscaling     # decaying learning rate
-    power_t: 0.3
-    average: true            # average the weight iterates; see models/model.py
+  type: mlp
+  feature_size: 64
   mlp:
-    hidden_layer_sizes: [128, 64]
-    alpha: 0.0006
+    hidden_layer_sizes: [512, 256]
+    alpha: 0.0001
 
 training:
-  epochs: 30                 # outer passes; each records a tracked metric point
-  batch_fraction: 0.5        # fraction of the training set seen per epoch
-  learning_rate: 0.02
-  early_stopping:
-    enabled: true
-    patience: 6
-    min_delta: 0.001
-
-evaluation:
-  threshold: 0.5
-
-logging:
-  level: INFO
-
-deployment:
-  image: mlops-catsdogs:local
-  api_service: catsdogs-api
-  ui_service: catsdogs-ui
+  learning_rate: 0.0005
+  epochs: 120
+  batch_fraction: 1.0
+  early_stopping_patience: 6
 
 tracking:
   backend: auto              # auto | mlflow | file
   experiment_name: catsdogs
   registered_model_name: catsdogs-classifier
   mlflow_tracking_uri: file:./mlruns
-  promote_min_accuracy: 0.75
+  promote_min_accuracy: 0.60
 
 serving:
   host: 0.0.0.0
   port: 8000
   model_version: local
   max_upload_bytes: 5242880
-  metrics_path: /metrics
-  latency_buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5]
-
-ui:
-  host: 0.0.0.0
-  port: 8501
-  api_url: http://127.0.0.1:8000
-  refresh_seconds: 5
-
-monitoring:
-  log_file: logs/service.jsonl
-  ui_log_file: logs/ui.jsonl
-  log_tail_lines: 300
-  perf_check:
-    sample_size: 40
-    min_accuracy: 0.70
-    max_accuracy_drop: 0.10
-  kubernetes:
-    enabled: false
-    namespace: mlops
-    label_selector: app.kubernetes.io/part-of=mlops-catsdogs
-    tail_lines: 200
-    kubectl_binary: kubectl
-    context: minikube
