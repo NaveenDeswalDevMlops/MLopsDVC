@@ -1,4 +1,4 @@
-name: CD (Deploy on MacBook Docker Desktop)
+name: CD (Deploy exact CI image on MacBook Docker Desktop)
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   deploy-to-macbook:
-    name: Deploy to MacBook Docker Desktop
+    name: Deploy exact CI image to MacBook Docker Desktop
     if: >-
       ${{
         (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
@@ -36,8 +36,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
-      - name: Determine image tag
+      - name: Determine exact image
         shell: bash
         run: |
           set -euo pipefail
@@ -48,16 +50,15 @@ jobs:
           fi
           OWNER_LOWER=$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
           REPO_LOWER=$(printf '%s' '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${OWNER_LOWER}/${REPO_LOWER}:${TAG}"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
-          echo "IMAGE=ghcr.io/${OWNER_LOWER}/${REPO_LOWER}:${TAG}" >> "$GITHUB_ENV"
-          echo "Deploying ghcr.io/${OWNER_LOWER}/${REPO_LOWER}:${TAG}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "Deploying exact CI image: $IMAGE"
 
-      - name: Verify MacBook Docker Desktop
+      - name: Verify Docker Desktop
         shell: bash
         run: |
           set -euo pipefail
-          echo "Runner: $(hostname)"
-          echo "Working directory: $PWD"
           docker version
           docker compose version
 
@@ -77,7 +78,7 @@ jobs:
           set -euo pipefail
           docker pull "$IMAGE"
 
-      - name: Deploy with Docker Compose
+      - name: Deploy exact CI image
         shell: bash
         env:
           DEPLOY_DIR: ${{ secrets.NAVEEN_COMPOSE_DIR }}
@@ -87,14 +88,18 @@ jobs:
           echo "Deploy directory: $DEPLOY_DIR"
           test -d "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
-
-          # Compose must use the exact image built by CI.
+          test -f docker/docker-compose.deploy.yml
           export IMAGE="$IMAGE"
           export TAG="$TAG"
 
-          docker compose -f docker/docker-compose.yml down --remove-orphans || true
-          docker compose -f docker/docker-compose.yml up -d --no-build --remove-orphans
-          docker compose -f docker/docker-compose.yml ps
+          docker compose -f docker/docker-compose.deploy.yml down --remove-orphans || true
+          docker compose -f docker/docker-compose.deploy.yml pull
+          docker compose -f docker/docker-compose.deploy.yml up -d --no-build --remove-orphans
+          docker compose -f docker/docker-compose.deploy.yml ps
+
+          ACTUAL=$(docker inspect --format '{{.Config.Image}}' mlops-catsdogs-api-1)
+          test "$ACTUAL" = "$IMAGE"
+          echo "Verified running API image: $ACTUAL"
 
       - name: Wait for service health
         shell: bash
@@ -110,16 +115,16 @@ jobs:
 
       - name: Collect deployment logs
         if: always()
-        shell: bash
         env:
           DEPLOY_DIR: ${{ secrets.NAVEEN_COMPOSE_DIR }}
+        shell: bash
         run: |
           set -euo pipefail
           DEPLOY_DIR="${DEPLOY_DIR:-$HOME/mlops-catsdogs}"
           mkdir -p "$GITHUB_WORKSPACE/deploy-logs"
           cd "$DEPLOY_DIR" || true
-          docker compose -f docker/docker-compose.yml ps > "$GITHUB_WORKSPACE/deploy-logs/ps.txt" 2>&1 || true
-          docker compose -f docker/docker-compose.yml logs --no-color --tail=500 > "$GITHUB_WORKSPACE/deploy-logs/compose-logs.txt" 2>&1 || true
+          docker compose -f docker/docker-compose.deploy.yml ps > "$GITHUB_WORKSPACE/deploy-logs/ps.txt" 2>&1 || true
+          docker compose -f docker/docker-compose.deploy.yml logs --no-color --tail=500 > "$GITHUB_WORKSPACE/deploy-logs/compose-logs.txt" 2>&1 || true
           tail -40 "$GITHUB_WORKSPACE/deploy-logs/compose-logs.txt" || true
 
       - name: Upload deployment evidence
@@ -129,15 +134,3 @@ jobs:
           name: macbook-deployment-evidence
           path: deploy-logs/
           retention-days: 14
-
-# MacBook prerequisites:
-# - GitHub Actions runner labels must include: self-hosted, macOS
-# - Docker Desktop must be running
-# - Runner user must be able to run docker/docker compose without sudo
-# - NAVEEN_COMPOSE_DIR should point to the checked-out repository on the MacBook
-#   (or omit it to use ~/mlops-catsdogs)
-# - GHCR_PAT is only needed if the GHCR package is private and GITHUB_TOKEN
-#   cannot read it; give it read:packages permission.
-# - docker/docker-compose.yml should use the IMAGE variable, e.g.:
-#     image: ${IMAGE:-mlops-catsdogs:local}
-#   and should not build the deployment service when CD uses --no-build.
