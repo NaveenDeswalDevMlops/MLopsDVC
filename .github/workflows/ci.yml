@@ -87,23 +87,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Reproduce DVC pipeline (if present)
-        if: ${{ always() }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
+      - name: Download Kaggle Cats-vs-Dogs dataset
         run: |
-          if [ -f dvc.yaml ]; then
-            echo "Found dvc.yaml — running dvc repro && dvc push (local remote)"
-            dvc repro || true
-            dvc push || true
-          else
-            echo "No dvc.yaml, skipping dvc repro"
-          fi
-
-      - name: Generate dataset
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src
-        run: python -m mlops.cli generate-data --per-class 250
+          set -euo pipefail
+          make data-kaggle
 
       - name: Preprocess
         env:
@@ -144,9 +131,9 @@ jobs:
             status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ready || true)
             model_info=$(curl -sS http://127.0.0.1:8000/model-info || true)
             if [ "$status" = "200" ]; then
-              if echo "$model_info" | grep -q '"model_loaded":true' || \
-                 echo "$model_info" | grep -q '"checkpoint"' || \
-                 echo "$model_info" | grep -q '"classes"'; then
+              if echo "$model_info" | grep -q '\"model_loaded\":true' || \
+                 echo "$model_info" | grep -q '\"checkpoint\"' || \
+                 echo "$model_info" | grep -q '\"classes\"'; then
                 ok=1
                 break
               fi
@@ -180,7 +167,7 @@ jobs:
           set -e
           mkdir -p submission
           zip -r submission/mlops_assignment2_submission.zip \
-            src docker k8s .github dvc.yaml dvc.lock requirements.txt requirements-dev.txt README.md artifacts mlruns || true
+            src docker k8s .github dvc.yaml dvc.lock requirements.txt requirements-dev.txt README.md artifacts mlruns
 
       - name: Upload submission
         uses: actions/upload-artifact@v4
