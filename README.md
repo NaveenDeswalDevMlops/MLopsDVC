@@ -1,3 +1,7 @@
+# Arch: ![Uploading image.png…]()
+
+
+
 # mlops-catsdogs
 
 An end-to-end MLOps pipeline for binary image classification (cat vs dog) on a pet
