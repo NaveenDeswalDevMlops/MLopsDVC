@@ -1,4 +1,5 @@
-# Arch: ![Uploading image.png…]()
+# Arch: <img width="1536" height="1024" alt="ChatGPT Image Aug 30, 2026 at 02_57_14 PM" src="https://github.com/user-attachments/assets/319971ae-adb7-4798-89b6-76c580d8b21f" />
+
 
 
 
