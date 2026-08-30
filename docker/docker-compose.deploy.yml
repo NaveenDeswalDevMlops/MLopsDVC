@@ -1,0 +1,41 @@
+name: mlops-catsdogs
+
+services:
+  api:
+    image: ${IMAGE:?IMAGE must be set to the CI-built image}
+    command: ["python", "-m", "mlops.cli", "serve-api", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      MLOPS_SERVING__MODEL_VERSION: ${TAG:-ci}
+      MLOPS_MONITORING__KUBERNETES__ENABLED: "false"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  ui:
+    image: ${IMAGE:?IMAGE must be set to the CI-built image}
+    command: ["python", "-m", "mlops.cli", "serve-ui", "--port", "8501"]
+    ports:
+      - "8501:8501"
+    environment:
+      MLOPS_UI__API_URL: http://api:8000
+      MLOPS_MONITORING__KUBERNETES__ENABLED: "false"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+    restart: unless-stopped
