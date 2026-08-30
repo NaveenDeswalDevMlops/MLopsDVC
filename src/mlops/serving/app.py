@@ -88,7 +88,7 @@ def create_app(config: Config | None = None) -> Flask:
         attached so tests and the dashboard can inspect them directly.
     """
     config = config or get_config()
-    config.ensure_dirs()
+    config.ensure_runtime_dirs()
     configure_logging(
         level=str(config.get("logging.level", "INFO")),
         log_file=config.path("monitoring.log_file"),

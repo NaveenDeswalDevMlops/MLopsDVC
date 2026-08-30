@@ -35,7 +35,10 @@ def _bootstrap(args: argparse.Namespace) -> Any:
         log_file=config.path("monitoring.log_file"),
         force=True,
     )
-    config.ensure_dirs()
+    if getattr(args, "command", "") in {"serve-api", "serve-ui"}:
+        config.ensure_runtime_dirs()
+    else:
+        config.ensure_dirs()
     return config
 
 

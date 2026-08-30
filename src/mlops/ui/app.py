@@ -56,7 +56,7 @@ def create_ui_app(config: Config | None = None) -> Flask:
         The configured Flask app, with ``app.jobs`` attached for tests.
     """
     config = config or get_config()
-    config.ensure_dirs()
+    config.ensure_runtime_dirs()
     configure_logging(
         level=str(config.get("logging.level", "INFO")),
         log_file=config.path("monitoring.ui_log_file"),

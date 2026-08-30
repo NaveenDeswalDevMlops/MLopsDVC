@@ -191,6 +191,17 @@ class Config:
         ):
             self.path(key).mkdir(parents=True, exist_ok=True)
 
+    def ensure_runtime_dirs(self) -> None:
+        """Create only directories needed by serving processes."""
+        for key in (
+            "paths.artifacts_dir",
+            "paths.metrics_dir",
+            "paths.plots_dir",
+            "paths.runs_dir",
+            "paths.logs_dir",
+        ):
+            self.path(key).mkdir(parents=True, exist_ok=True)
+
 
 def load_config(config_path: Path | str | None = None) -> Config:
     """Load configuration from YAML and environment.
