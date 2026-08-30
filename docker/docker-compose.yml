@@ -25,6 +25,64 @@ services:
     volumes:
       - ../mlruns:/app/mlruns:rw
       - ../artifacts:/app/artifacts:rw
+      - ../data:/app/data:ro
+
+  ui:
+    image: ${IMAGE:-mlops-catsdogs:local}
+    command: ["python", "-m", "mlops.cli", "serve-ui", "--port", "8501"]
+    ports: ["8501:8501"]
+    environment:
+      # Service name, not localhost: inside the network each container has its own
+      # loopback, so 127.0.0.1 here would point the dashboard at itself.
+      MLOPS_UI__API_URL: http://api:8000
+      MLOPS_MONITORING__KUBERNETES__ENABLED: "false"
+      # Point the UI's tracker at the mounted runs so the dashboard shows
+      # experiments produced locally on the host filesystem.
+      MLOPS_TRACKING__MLFLOW_TRACKING_URI: file:/app/mlruns
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ../mlruns:/app/mlruns:rw
+      - ../artifacts:/app/artifacts:rw
+      - ../data:/app/data:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports: ["9090:9090"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on: [api]
+    restart: unless-stopped
+# Local stack: the API, the dashboard and a Prometheus that scrapes the API.
+# Both services run the same image with different commands.
+name: mlops-catsdogs
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ${IMAGE:-mlops-catsdogs:local}
+    command: ["python", "-m", "mlops.cli", "serve-api", "--port", "8000"]
+    ports: ["8000:8000"]
+    environment:
+      MLOPS_SERVING__MODEL_VERSION: compose
+      # When running in Compose, prefer the repository-mounted mlruns so the
+      # container can read runs produced by a trainer running on the host.
+      MLOPS_TRACKING__MLFLOW_TRACKING_URI: file:/app/mlruns
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    volumes:
+      - ../mlruns:/app/mlruns:rw
+      - ../artifacts:/app/artifacts:rw
       - ../data:/app/data:rw
 
   ui:
