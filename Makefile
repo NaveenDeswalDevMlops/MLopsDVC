@@ -22,9 +22,9 @@ API_URL     ?= http://127.0.0.1:$(API_PORT)
 PER_CLASS   ?= 300
 
 .PHONY: help install clean-venv data data-kaggle preprocess train evaluate promote pipeline \
-        serve-api serve-ui stop test lint dvc-init dvc-repro dvc-status dataset-lock \
-        perf-check smoke docker-build docker-run compose-up compose-down dvc-commit mlflow-ui \
-        minikube-up k8s-deploy k8s-urls k8s-smoke k8s-logs k8s-delete clean status demo
+	serve-api serve-ui stop test lint dvc-init dvc-repro dvc-status dataset-lock \
+	perf-check smoke docker-build docker-run compose-up compose-down dvc-commit mlflow-ui \
+	clean status demo
 
 help: ## Show this help
 	@echo "mlops-catsdogs — targets"
@@ -172,31 +172,6 @@ compose-up: ## Start the API, dashboard and Prometheus with Compose
 compose-down: ## Stop the Compose stack
 	docker compose -f docker/docker-compose.yml down -v
 
-# ---------------------------------------------------------------- kubernetes
-
-minikube-up: ## Start minikube and create the namespace
-	minikube status >/dev/null 2>&1 || minikube start --cpus=2 --memory=3g
-	kubectl create namespace $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
-
-k8s-deploy: docker-build ## Load the image into minikube and apply every manifest
-	minikube image load $(IMAGE):$(TAG)
-	kubectl apply -f k8s/
-	kubectl -n $(NAMESPACE) rollout status deployment/catsdogs-api  --timeout=180s
-	kubectl -n $(NAMESPACE) rollout status deployment/catsdogs-ui   --timeout=180s
-	@$(MAKE) --no-print-directory k8s-urls
-
-k8s-urls: ## Print the in-cluster service URLs
-	@echo "API:       $$(minikube service catsdogs-api -n $(NAMESPACE) --url)"
-	@echo "Dashboard: $$(minikube service catsdogs-ui  -n $(NAMESPACE) --url)"
-
-k8s-smoke: ## Health and prediction against the deployed service
-	@bash scripts/smoke_test.sh "$$(minikube service catsdogs-api -n $(NAMESPACE) --url)"
-
-k8s-logs: ## Tail logs from every pod in the namespace
-	kubectl -n $(NAMESPACE) logs -l app.kubernetes.io/part-of=mlops-catsdogs --all-containers=true --tail=200 -f
-
-k8s-delete: ## Remove the deployment
-	kubectl delete -f k8s/ --ignore-not-found
 
 # ---------------------------------------------------------------- cleanup
 

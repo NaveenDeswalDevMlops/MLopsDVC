@@ -174,7 +174,7 @@ def stage_status(config: Config, api: dict[str, Any] | None = None) -> list[dict
     lock = read_dataset_lock(config)
     runs = list_runs(config, limit=200)
     report = load_report(config)
-    k8s_manifests = sorted((config.root / "k8s").glob("*.yaml"))
+    docker_compose = (config.root / "docker" / "docker-compose.yml").is_file()
 
     processed_total = (data.get("processed") or {}).get("total_images", 0)
     train_runs = [run for run in runs if run.get("tags", {}).get("stage") == "train"]
@@ -211,8 +211,8 @@ def stage_status(config: Config, api: dict[str, Any] | None = None) -> list[dict
             else "no performance check yet",
         ),
         "deploy": (
-            bool(k8s_manifests),
-            f"{len(k8s_manifests)} manifest(s) ready",
+            bool(docker_compose),
+            "docker-compose ready" if docker_compose else "no compose file",
         ),
     }
 

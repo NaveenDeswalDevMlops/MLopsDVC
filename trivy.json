@@ -1,0 +1,408 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "local/mlops:verify",
+  "ArtifactType": "container_image",
+  "Metadata": {
+    "OS": {
+      "Family": "debian",
+      "Name": "12.15"
+    },
+    "ImageID": "sha256:884f52485b0169966c93abaa45fcc7f626aac290b4ad569c757537d87c862068",
+    "DiffIDs": [
+      "sha256:13a56b6535801be2adde694dabaf1c2df1d862a390661907dac821c42cd565cc",
+      "sha256:3a59860fca4031e5192d15d930c403a3a38e093498ee4832ff8c4c217b151e77",
+      "sha256:7c07800a8b89e4c584d86ffcacd4c6dd680d2451297a303dff174fb0e21f288e",
+      "sha256:076ca9e680a0bfe558644f2eff6510bc36a8644ad090bc041c85a67976ec80c5",
+      "sha256:80b5c7bc908dcf86e08ea6a190976c69eeb34186a243353238f0c793f78115cf",
+      "sha256:4e05aa5d5f29519f042ae6954c72407a8006b947d29f16b945b58c5e18698e28",
+      "sha256:7e30b1bfebf21e1f3c048c87bbdd2ee141b6fabc679e4070ecba11618f83921d",
+      "sha256:b51f6c27eef6a74d646361af48c8f009316cdd0d108db7baaea7c702b7a655e2",
+      "sha256:f728f8881326e7a9cba256719195ceaf7ca4ec57cd81c36a41a9c8a9360f2384",
+      "sha256:1859f48046c8c19ad2b5f444e7a2e412f2e73362e2fc593a9092b61b6c8b6efb",
+      "sha256:dd70d6be4c706bb42876a293c10c3eb85702e3e861bce0dc04e0fa638a79ebfb",
+      "sha256:f41edaa98d42424ad0a2ff84f99980eba97e0940adc4a217d07a5770d088b6d9",
+      "sha256:135041e8a170053d3e050d8309863fe62928eb43641a0104adadbe0beb8f6edc",
+      "sha256:6103e70c7b5ab4787145fdbc681d7706b339941245ffcfedbf154fe0d71508ba"
+    ],
+    "RepoTags": [
+      "local/mlops:verify"
+    ],
+    "RepoDigests": [
+      "local/mlops@sha256:884f52485b0169966c93abaa45fcc7f626aac290b4ad569c757537d87c862068"
+    ],
+    "ImageConfig": {
+      "architecture": "arm64",
+      "created": "2026-08-29T10:33:28.059345969Z",
+      "history": [
+        {
+          "created": "2026-08-24T00:00:00Z",
+          "created_by": "# debian.sh --arch 'arm64' out/ 'bookworm' '@1787529600'",
+          "comment": "debuerreotype 0.17"
+        },
+        {
+          "created": "2026-08-25T01:14:35Z",
+          "created_by": "ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-25T01:14:35Z",
+          "created_by": "ENV LANG=C.UTF-8",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-25T01:14:35Z",
+          "created_by": "RUN /bin/sh -c set -eux; \tapt-get update; \tapt-get install -y --no-install-recommends \t\tca-certificates \t\tnetbase \t\ttzdata \t; \trm -rf /var/lib/apt/lists/* # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-25T01:14:35Z",
+          "created_by": "ENV GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-25T01:14:35Z",
+          "created_by": "ENV PYTHON_VERSION=3.11.16",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-25T01:14:35Z",
+          "created_by": "ENV PYTHON_SHA256=91bcdebfdde239a003ae93738a7fce0f9230fee5c4bc2b86f6e6e8c6f98aabe8",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-25T01:25:30Z",
+          "created_by": "RUN /bin/sh -c set -eux; \t\tsavedAptMark=\"$(apt-mark showmanual)\"; \tapt-get update; \tapt-get install -y --no-install-recommends \t\tdpkg-dev \t\tgcc \t\tgnupg \t\tlibbluetooth-dev \t\tlibbz2-dev \t\tlibc6-dev \t\tlibdb-dev \t\tlibffi-dev \t\tlibgdbm-dev \t\tliblzma-dev \t\tlibncursesw5-dev \t\tlibreadline-dev \t\tlibsqlite3-dev \t\tlibssl-dev \t\tmake \t\ttk-dev \t\tuuid-dev \t\twget \t\txz-utils \t\tzlib1g-dev \t; \t\twget -O python.tar.xz \"https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz\"; \techo \"$PYTHON_SHA256 *python.tar.xz\" | sha256sum -c -; \twget -O python.tar.xz.asc \"https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz.asc\"; \tGNUPGHOME=\"$(mktemp -d)\"; export GNUPGHOME; \tgpg --batch --keyserver hkps://keys.openpgp.org --recv-keys \"$GPG_KEY\"; \tgpg --batch --verify python.tar.xz.asc python.tar.xz; \tgpgconf --kill all; \trm -rf \"$GNUPGHOME\" python.tar.xz.asc; \tmkdir -p /usr/src/python; \ttar --extract --directory /usr/src/python --strip-components=1 --file python.tar.xz; \trm python.tar.xz; \t\tcd /usr/src/python; \tgnuArch=\"$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)\"; \t./configure \t\t--build=\"$gnuArch\" \t\t--enable-loadable-sqlite-extensions \t\t--enable-optimizations \t\t--enable-option-checking=fatal \t\t--enable-shared \t\t$(test \"${gnuArch%%-*}\" != 'riscv64' \u0026\u0026 echo '--with-lto') \t\t--with-ensurepip \t; \tnproc=\"$(nproc)\"; \tEXTRA_CFLAGS=\"$(dpkg-buildflags --get CFLAGS)\"; \tLDFLAGS=\"$(dpkg-buildflags --get LDFLAGS)\"; \tLDFLAGS=\"${LDFLAGS:-} -Wl,--strip-all\"; \tmake -j \"$nproc\" \t\t\"EXTRA_CFLAGS=${EXTRA_CFLAGS:-}\" \t\t\"LDFLAGS=${LDFLAGS:-}\" \t; \trm python; \tmake -j \"$nproc\" \t\t\"EXTRA_CFLAGS=${EXTRA_CFLAGS:-}\" \t\t\"LDFLAGS=${LDFLAGS:-} -Wl,-rpath='\\$\\$ORIGIN/../lib'\" \t\tpython \t; \tmake install; \t\tcd /; \trm -rf /usr/src/python; \t\tfind /usr/local -depth \t\t\\( \t\t\t\\( -type d -a \\( -name test -o -name tests -o -name idle_test \\) \\) \t\t\t-o \\( -type f -a \\( -name '*.pyc' -o -name '*.pyo' -o -name 'libpython*.a' \\) \\) \t\t\\) -exec rm -rf '{}' + \t; \t\tldconfig; \t\tapt-mark auto '.*' \u003e /dev/null; \tapt-mark manual $savedAptMark; \tfind /usr/local -type f -executable -not \\( -name '*tkinter*' \\) -exec ldd '{}' ';' \t\t| awk '/=\u003e/ { so = $(NF-1); if (index(so, \"/usr/local/\") == 1) { next }; gsub(\"^/(usr/)?\", \"\", so); printf \"*%s\\n\", so }' \t\t| sort -u \t\t| xargs -rt dpkg-query --search \t\t| awk 'sub(\":$\", \"\", $1) { print $1 }' \t\t| sort -u \t\t| xargs -r apt-mark manual \t; \tapt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \trm -rf /var/lib/apt/lists/*; \t\texport PYTHONDONTWRITEBYTECODE=1; \tpython3 --version; \t\tpip3 install \t\t--disable-pip-version-check \t\t--no-cache-dir \t\t--no-compile \t\t'setuptools==79.0.1' \t\t'wheel==0.46.3' \t; \tpip3 --version # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-25T01:25:30Z",
+          "created_by": "RUN /bin/sh -c set -eux; \tfor src in idle3 pip3 pydoc3 python3 python3-config; do \t\tdst=\"$(echo \"$src\" | tr -d 3)\"; \t\t[ -s \"/usr/local/bin/$src\" ]; \t\t[ ! -e \"/usr/local/bin/$dst\" ]; \t\tln -svT \"$src\" \"/usr/local/bin/$dst\"; \tdone # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-25T01:25:30Z",
+          "created_by": "CMD [\"python3\"]",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-29T07:35:10Z",
+          "created_by": "LABEL org.opencontainers.image.title=mlops-catsdogs org.opencontainers.image.description=Cats vs dogs classifier: inference API and control-room dashboard org.opencontainers.image.source=https://github.com/your-org/mlops-catsdogs org.opencontainers.image.licenses=MIT",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-29T07:35:10Z",
+          "created_by": "ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app/src MLOPS_PROJECT_ROOT=/app MLOPS_SERVING__HOST=0.0.0.0 MLOPS_UI__HOST=0.0.0.0",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-29T07:35:10Z",
+          "created_by": "WORKDIR /app",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:25Z",
+          "created_by": "COPY /install /usr/local # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:27Z",
+          "created_by": "RUN /bin/sh -c pip install --no-deps --upgrade   \"pillow==12.3.0\"   \"jaraco.context==6.1.2\"   \"wheel==0.48.0\" # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:27Z",
+          "created_by": "COPY src/ /app/src/ # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:27Z",
+          "created_by": "COPY configs/ /app/configs/ # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:27Z",
+          "created_by": "COPY scripts/ /app/scripts/ # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:27Z",
+          "created_by": "COPY artifacts/model.pkl /app/artifacts/model.pkl # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:27Z",
+          "created_by": "COPY artifacts/metrics/baseline.json /app/artifacts/metrics/baseline.json # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:27Z",
+          "created_by": "COPY artifacts/model_card.md /app/artifacts/model_card.md # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:28Z",
+          "created_by": "RUN /bin/sh -c useradd --uid 10001 --create-home --shell /usr/sbin/nologin appuser  \u0026\u0026 mkdir -p /app/logs /app/data /app/artifacts/runs /app/artifacts/plots  \u0026\u0026 chown -R 10001:10001 /app # buildkit",
+          "comment": "buildkit.dockerfile.v0"
+        },
+        {
+          "created": "2026-08-29T10:33:28Z",
+          "created_by": "USER 10001",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-29T10:33:28Z",
+          "created_by": "EXPOSE [8000/tcp 8501/tcp]",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-29T10:33:28Z",
+          "created_by": "HEALTHCHECK {Test:[CMD-SHELL python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)\"] Interval:30s Timeout:5s StartPeriod:15s StartInterval:0s Retries:3}",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        },
+        {
+          "created": "2026-08-29T10:33:28Z",
+          "created_by": "CMD [\"python\" \"-m\" \"mlops.cli\" \"serve-api\" \"--port\" \"8000\"]",
+          "comment": "buildkit.dockerfile.v0",
+          "empty_layer": true
+        }
+      ],
+      "os": "linux",
+      "rootfs": {
+        "type": "layers",
+        "diff_ids": [
+          "sha256:13a56b6535801be2adde694dabaf1c2df1d862a390661907dac821c42cd565cc",
+          "sha256:3a59860fca4031e5192d15d930c403a3a38e093498ee4832ff8c4c217b151e77",
+          "sha256:7c07800a8b89e4c584d86ffcacd4c6dd680d2451297a303dff174fb0e21f288e",
+          "sha256:076ca9e680a0bfe558644f2eff6510bc36a8644ad090bc041c85a67976ec80c5",
+          "sha256:80b5c7bc908dcf86e08ea6a190976c69eeb34186a243353238f0c793f78115cf",
+          "sha256:4e05aa5d5f29519f042ae6954c72407a8006b947d29f16b945b58c5e18698e28",
+          "sha256:7e30b1bfebf21e1f3c048c87bbdd2ee141b6fabc679e4070ecba11618f83921d",
+          "sha256:b51f6c27eef6a74d646361af48c8f009316cdd0d108db7baaea7c702b7a655e2",
+          "sha256:f728f8881326e7a9cba256719195ceaf7ca4ec57cd81c36a41a9c8a9360f2384",
+          "sha256:1859f48046c8c19ad2b5f444e7a2e412f2e73362e2fc593a9092b61b6c8b6efb",
+          "sha256:dd70d6be4c706bb42876a293c10c3eb85702e3e861bce0dc04e0fa638a79ebfb",
+          "sha256:f41edaa98d42424ad0a2ff84f99980eba97e0940adc4a217d07a5770d088b6d9",
+          "sha256:135041e8a170053d3e050d8309863fe62928eb43641a0104adadbe0beb8f6edc",
+          "sha256:6103e70c7b5ab4787145fdbc681d7706b339941245ffcfedbf154fe0d71508ba"
+        ]
+      },
+      "config": {
+        "Cmd": [
+          "python",
+          "-m",
+          "mlops.cli",
+          "serve-api",
+          "--port",
+          "8000"
+        ],
+        "Healthcheck": {
+          "Test": [
+            "CMD-SHELL",
+            "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)\""
+          ],
+          "Interval": 30000000000,
+          "Timeout": 5000000000,
+          "StartPeriod": 15000000000,
+          "Retries": 3
+        },
+        "Env": [
+          "PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "LANG=C.UTF-8",
+          "GPG_KEY=A035C8C19219BA821ECEA86B64E628F8D684696D",
+          "PYTHON_VERSION=3.11.16",
+          "PYTHON_SHA256=91bcdebfdde239a003ae93738a7fce0f9230fee5c4bc2b86f6e6e8c6f98aabe8",
+          "PYTHONUNBUFFERED=1",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "PYTHONPATH=/app/src",
+          "MLOPS_PROJECT_ROOT=/app",
+          "MLOPS_SERVING__HOST=0.0.0.0",
+          "MLOPS_UI__HOST=0.0.0.0"
+        ],
+        "Labels": {
+          "org.opencontainers.image.description": "Cats vs dogs classifier: inference API and control-room dashboard",
+          "org.opencontainers.image.licenses": "MIT",
+          "org.opencontainers.image.source": "https://github.com/your-org/mlops-catsdogs",
+          "org.opencontainers.image.title": "mlops-catsdogs"
+        },
+        "User": "10001",
+        "WorkingDir": "/app",
+        "ArgsEscaped": true
+      }
+    }
+  },
+  "Results": [
+    {
+      "Target": "local/mlops:verify (debian 12.15)",
+      "Class": "os-pkgs",
+      "Type": "debian"
+    },
+    {
+      "Target": "Python",
+      "Class": "lang-pkgs",
+      "Type": "python-pkg",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2026-23949",
+          "PkgName": "jaraco.context",
+          "PkgPath": "usr/local/lib/python3.11/site-packages/setuptools/_vendor/jaraco.context-5.3.0.dist-info/METADATA",
+          "InstalledVersion": "5.3.0",
+          "FixedVersion": "6.1.0",
+          "Layer": {
+            "Digest": "sha256:16b3fce6c94d5205539cced49a150d33790088d380bbc27513e774440902223f",
+            "DiffID": "sha256:7c07800a8b89e4c584d86ffcacd4c6dd680d2451297a303dff174fb0e21f288e"
+          },
+          "SeveritySource": "ghsa",
+          "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-23949",
+          "DataSource": {
+            "ID": "ghsa",
+            "Name": "GitHub Security Advisory pip",
+            "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+          },
+          "Title": "jaraco.context: jaraco.context: Path traversal via malicious tar archives",
+          "Description": "jaraco.context, an open-source software package that provides some useful decorators and context managers, has a Zip Slip path traversal vulnerability in the `jaraco.context.tarball()` function starting in version 5.2.0 and prior to version 6.1.0. The vulnerability may allow attackers to extract files outside the intended extraction directory when malicious tar archives are processed. The strip_first_component filter splits the path on the first `/` and extracts the second component, while allowing `../` sequences. Paths like `dummy_dir/../../etc/passwd` become `../../etc/passwd`. Note that this suffers from a nested tarball attack as well with multi-level tar files such as `dummy_dir/inner.tar.gz`, where the inner.tar.gz includes a traversal `dummy_dir/../../config/.env` that also gets translated to `../../config/.env`. Version 6.1.0 contains a patch for the issue.",
+          "Severity": "HIGH",
+          "CweIDs": [
+            "CWE-22"
+          ],
+          "CVSS": {
+            "ghsa": {
+              "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
+              "V3Score": 8.6
+            },
+            "redhat": {
+              "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
+              "V3Score": 8.6
+            }
+          },
+          "References": [
+            "https://access.redhat.com/security/cve/CVE-2026-23949",
+            "https://github.com/jaraco/jaraco.context",
+            "https://github.com/jaraco/jaraco.context/blob/main/jaraco/context/__init__.py#L74-L91",
+            "https://github.com/jaraco/jaraco.context/commit/7b26a42b525735e4085d2e994e13802ea339d5f9",
+            "https://github.com/jaraco/jaraco.context/security/advisories/GHSA-58pv-8j8x-9vj2",
+            "https://github.com/pypa/setuptools/blob/main/setuptools/_vendor/jaraco/context.py#L55-L76",
+            "https://nvd.nist.gov/vuln/detail/CVE-2026-23949",
+            "https://ubuntu.com/security/notices/USN-7979-1",
+            "https://www.cve.org/CVERecord?id=CVE-2026-23949"
+          ],
+          "PublishedDate": "2026-01-20T01:15:57.723Z",
+          "LastModifiedDate": "2026-06-17T10:22:20.2Z"
+        },
+        {
+          "VulnerabilityID": "CVE-2026-24049",
+          "PkgName": "wheel",
+          "PkgPath": "usr/local/lib/python3.11/site-packages/setuptools/_vendor/wheel-0.45.1.dist-info/METADATA",
+          "InstalledVersion": "0.45.1",
+          "FixedVersion": "0.46.2",
+          "Layer": {
+            "Digest": "sha256:16b3fce6c94d5205539cced49a150d33790088d380bbc27513e774440902223f",
+            "DiffID": "sha256:7c07800a8b89e4c584d86ffcacd4c6dd680d2451297a303dff174fb0e21f288e"
+          },
+          "SeveritySource": "ghsa",
+          "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-24049",
+          "DataSource": {
+            "ID": "ghsa",
+            "Name": "GitHub Security Advisory pip",
+            "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+          },
+          "Title": "wheel: wheel: Privilege Escalation or Arbitrary Code Execution via malicious wheel file unpacking",
+          "Description": "wheel is a command line tool for manipulating Python wheel files, as defined in PEP 427. In versions 0.40.0 through 0.46.1, the unpack function is vulnerable to file permission modification through mishandling of file permissions after extraction. The logic blindly trusts the filename from the archive header for the chmod operation, even though the extraction process itself might have sanitized the path. Attackers can craft a malicious wheel file that, when unpacked, changes the permissions of critical system files (e.g., /etc/passwd, SSH keys, config files), allowing for Privilege Escalation or arbitrary code execution by modifying now-writable scripts. This issue has been fixed in version 0.46.2.",
+          "Severity": "HIGH",
+          "CweIDs": [
+            "CWE-22",
+            "CWE-732"
+          ],
+          "CVSS": {
+            "ghsa": {
+              "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:H",
+              "V3Score": 7.1
+            },
+            "nvd": {
+              "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N",
+              "V3Score": 5.5
+            },
+            "redhat": {
+              "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:H",
+              "V3Score": 7.1
+            }
+          },
+          "References": [
+            "https://access.redhat.com/errata/RHSA-2026:10184",
+            "https://access.redhat.com/errata/RHSA-2026:13545",
+            "https://access.redhat.com/errata/RHSA-2026:14020",
+            "https://access.redhat.com/errata/RHSA-2026:1504",
+            "https://access.redhat.com/errata/RHSA-2026:17599",
+            "https://access.redhat.com/errata/RHSA-2026:1902",
+            "https://access.redhat.com/errata/RHSA-2026:1939",
+            "https://access.redhat.com/errata/RHSA-2026:1942",
+            "https://access.redhat.com/errata/RHSA-2026:19712",
+            "https://access.redhat.com/errata/RHSA-2026:20089",
+            "https://access.redhat.com/errata/RHSA-2026:2090",
+            "https://access.redhat.com/errata/RHSA-2026:2106",
+            "https://access.redhat.com/errata/RHSA-2026:2139",
+            "https://access.redhat.com/errata/RHSA-2026:2675",
+            "https://access.redhat.com/errata/RHSA-2026:2681",
+            "https://access.redhat.com/errata/RHSA-2026:2694",
+            "https://access.redhat.com/errata/RHSA-2026:2695",
+            "https://access.redhat.com/errata/RHSA-2026:2710",
+            "https://access.redhat.com/errata/RHSA-2026:2754",
+            "https://access.redhat.com/errata/RHSA-2026:2762",
+            "https://access.redhat.com/errata/RHSA-2026:2823",
+            "https://access.redhat.com/errata/RHSA-2026:2865",
+            "https://access.redhat.com/errata/RHSA-2026:2866",
+            "https://access.redhat.com/errata/RHSA-2026:2900",
+            "https://access.redhat.com/errata/RHSA-2026:2925",
+            "https://access.redhat.com/errata/RHSA-2026:3461",
+            "https://access.redhat.com/errata/RHSA-2026:3462",
+            "https://access.redhat.com/errata/RHSA-2026:3713",
+            "https://access.redhat.com/errata/RHSA-2026:3782",
+            "https://access.redhat.com/errata/RHSA-2026:3958",
+            "https://access.redhat.com/errata/RHSA-2026:3959",
+            "https://access.redhat.com/errata/RHSA-2026:3960",
+            "https://access.redhat.com/errata/RHSA-2026:4185",
+            "https://access.redhat.com/errata/RHSA-2026:4215",
+            "https://access.redhat.com/errata/RHSA-2026:4271",
+            "https://access.redhat.com/errata/RHSA-2026:4942",
+            "https://access.redhat.com/errata/RHSA-2026:5119",
+            "https://access.redhat.com/errata/RHSA-2026:6192",
+            "https://access.redhat.com/errata/RHSA-2026:6555",
+            "https://access.redhat.com/errata/RHSA-2026:6562",
+            "https://access.redhat.com/errata/RHSA-2026:6565",
+            "https://access.redhat.com/errata/RHSA-2026:7250",
+            "https://access.redhat.com/security/cve/CVE-2026-24049",
+            "https://bugzilla.redhat.com/2431959",
+            "https://bugzilla.redhat.com/show_bug.cgi?id=2431959",
+            "https://creativecommons.org/licenses/by/4.0/",
+            "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-24049",
+            "https://errata.almalinux.org/9/ALSA-2026-1939.html",
+            "https://errata.rockylinux.org/RLSA-2026:1939",
+            "https://github.com/pypa/wheel",
+            "https://github.com/pypa/wheel/commit/7a7d2de96b22a9adf9208afcc9547e1001569fef",
+            "https://github.com/pypa/wheel/commit/934fe177ff912c8e03d5ae951d3805e1fd90ba5e",
+            "https://github.com/pypa/wheel/releases/tag/0.46.2",
+            "https://github.com/pypa/wheel/security/advisories/GHSA-8rrh-rw8j-w5fx",
+            "https://linux.oracle.com/cve/CVE-2026-24049.html",
+            "https://linux.oracle.com/errata/ELSA-2026-2090.html",
+            "https://nvd.nist.gov/vuln/detail/CVE-2026-24049",
+            "https://security.access.redhat.com/data/csaf/v2/vex/2026/cve-2026-24049.json",
+            "https://ubuntu.com/security/notices/USN-8221-1",
+            "https://www.cve.org/CVERecord?id=CVE-2026-24049"
+          ],
+          "PublishedDate": "2026-01-22T05:16:23.157Z",
+          "LastModifiedDate": "2026-08-26T13:17:55.167Z"
+        }
+      ]
+    }
+  ]
+}

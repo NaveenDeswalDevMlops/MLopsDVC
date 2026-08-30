@@ -120,29 +120,20 @@ never becomes `latest`.
 
 ---
 
-## M4 — CD pipeline & deployment
+### M4 — CD pipeline & deployment
 
 ### M4.1 Deployment target
 
-Local **minikube**. Manifests in `k8s/`:
-
-| File | Contents |
-| --- | --- |
-| `00-namespace.yaml` | `mlops` namespace |
-| `01-configmap.yaml` | Runtime config via the `MLOPS_*` override syntax |
-| `02-rbac.yaml` | ServiceAccount + Role + RoleBinding for pod-log reads |
-| `10-api-deployment.yaml` | 2 replicas, startup/liveness/readiness probes, read-only rootfs, non-root, dropped capabilities, resource limits |
-| `11-api-service.yaml` | NodePort 30800 |
-| `20-ui-deployment.yaml` | Dashboard, 1 replica (in-memory job state) |
-| `21-ui-service.yaml` | NodePort 30851 |
-
-Docker Compose is also provided (`docker/docker-compose.yml`) with Prometheus.
+Local **Docker Compose**. `docker/docker-compose.yml` provides API, dashboard
+and Prometheus for local integration testing. The image is still built with the
+trained checkpoint baked in (`make docker-build`) and can be started with
+`make compose-up`.
 
 ### M4.2 CD / GitOps flow
 
-`.github/workflows/cd.yml` — trains, builds inside minikube's Docker daemon,
-applies `k8s/`, waits for both rollouts, and rolls back on failure. Triggers on push
-to `main` and `workflow_dispatch`.
+`.github/workflows/cd.yml` — trains and builds the image; CI then smoke tests the
+built container and scans it with Trivy. (Some CI steps referenced minikube;
+the dashboard and local runtime now default to Docker Compose.)
 
 The trigger is deliberately not `workflow_run` chained to CI: that only fires once
 the workflow file already exists on the default branch, which is exactly when a
@@ -152,12 +143,13 @@ first-time setup looks broken.
 
 `scripts/smoke_test.sh` — health, readiness, model-info, metrics, a real prediction
 with a real image, and a malformed payload that must be rejected with 422. It exits
-non-zero on any failure, so the pipeline fails. Run against the cluster with
-`make k8s-smoke`.
+non-zero on any failure, so the pipeline fails. Run against the stack with
+`make smoke`.
 
-CD additionally asserts that the dashboard's service account can read pod logs
-(`kubectl auth can-i get pods/log`), so a broken Role fails the deploy rather than
-silently producing an empty log view that looks like "no traffic yet".
+CD additionally checks that the dashboard can read container logs (the Compose
+verification mounts the Docker socket into the UI service), so a misconfigured
+compose environment that prevents log access will surface as a failure rather than
+silently producing an empty log view.
 
 ---
 
@@ -173,10 +165,10 @@ silently producing an empty log view that looks like "no traffic yet".
 
 Every request carries an `X-Request-ID`, honoured from the caller when supplied.
 
-Cluster logs: `src/mlops/monitoring/log_collector.py` collects via `kubectl` from
-outside the cluster and via the Kubernetes API from inside it, using the pod's own
-service-account token. Both normalise to the same record shape, so the dashboard
-renders one merged stream. `docker/prometheus.yml` scrapes the API directly.
+Logs: `src/mlops/monitoring/log_collector.py` collects either from the local JSONL
+files or, when available, from the host Docker daemon using `docker ps`/`docker logs`.
+Both normalise to the same record shape so the dashboard renders one merged stream.
+`docker/prometheus.yml` scrapes the API directly.
 
 ### M5.2 Model performance tracking (post-deployment)
 
@@ -193,7 +185,7 @@ Run it with `make perf-check`, or the dashboard's *Performance tracking* panel.
 ## Deliverables
 
 1. **Source, configs and artifacts** — this folder. Source, DVC config, CI/CD
-   workflows, Dockerfile, Compose file, Kubernetes manifests, the trained
+  workflows, Dockerfile, Compose file, optional Kubernetes manifests (in `k8s/`), the trained
    checkpoint, metrics, plots and the model card.
 2. **Screen recording** — suggested five-minute route in
    [`docs/demo-script.md`](demo-script.md).

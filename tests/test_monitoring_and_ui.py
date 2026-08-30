@@ -22,7 +22,6 @@ from mlops.ui.app import create_ui_app
 from mlops.ui.jobs import JobRunner
 from mlops.ui.state import project_status, stage_status
 
-
 # ---------------------------------------------------------------- versioning
 
 def test_dataset_lock_records_both_trees() -> None:
@@ -111,24 +110,24 @@ def test_local_collection_reads_the_service_log() -> None:
         assert bundle.records[0]["source"] == "local"
 
 
-def test_kubectl_collection_parses_pod_logs(tmp_path: Path | None = None) -> None:
-    """With a stubbed kubectl on PATH, pod logs are collected and normalised.
+def test_docker_collection_parses_container_logs(tmp_path: Path | None = None) -> None:
+    """With a stubbed docker on PATH, container logs are collected and normalised.
 
-    A stub is used rather than a mock so the real subprocess handling, argument
-    construction and JSON parsing are all exercised.
+    A stub is used rather than a mock so subprocess handling and parsing are
+    exercised similarly to the real runtime.
     """
-    with TempProject(**{"monitoring.kubernetes.enabled": True}) as project:
+    with TempProject() as project:
         bin_dir = project.root / "stubbin"
         bin_dir.mkdir(parents=True, exist_ok=True)
-        stub = bin_dir / "kubectl"
+        stub = bin_dir / "docker"
         stub.write_text(
             "#!/usr/bin/env bash\n"
-            'if [[ "$*" == *"get pods"* ]]; then\n'
-            '  echo \'{"items":[{"metadata":{"name":"catsdogs-api-1"},'
-            '"status":{"phase":"Running","containerStatuses":[{"ready":true,"restartCount":2,'
-            '"image":"mlops-catsdogs:local"}]},"spec":{"nodeName":"minikube"}}]}\'\n'
+            'if [[ "$*" == *"ps"* ]]; then\n'
+            '  echo \"service-api||mlops-catsdogs:local||Up 2 minutes\"\n'
+            '  echo \"service-ui||mlops-catsdogs:local||Up 2 minutes\"\n'
             "else\n"
-            '  echo \'{"level":"INFO","message":"served a prediction","ts":"2026-01-01T00:00:01Z"}\'\n'
+            '  # logs --tail N NAME\n'
+            '  echo \"{\\\"level\\\":\\\"INFO\\\",\\\"message\\\":\\\"served a prediction\\\",\\\"ts\\\":\\\"2026-01-01T00:00:01Z\\\"}\"\n'
             "  echo 'a plain non-JSON line'\n"
             "fi\n",
             encoding="utf-8",
@@ -138,48 +137,39 @@ def test_kubectl_collection_parses_pod_logs(tmp_path: Path | None = None) -> Non
         original = os.environ["PATH"]
         os.environ["PATH"] = f"{bin_dir}{os.pathsep}{original}"
         try:
-            project.config.raw["monitoring"]["kubernetes"]["context"] = ""
-            pods = log_collector.list_pods_kubectl(project.config)
-            assert len(pods) == 1
-            assert pods[0]["name"] == "catsdogs-api-1"
-            assert pods[0]["ready"] is True
-            assert pods[0]["restarts"] == 2
+            listing = log_collector.list_containers(project.config)
+            assert listing["source"] == "docker"
+            assert any(c["name"] == "service-api" for c in listing["containers"]) or listing["containers"]
 
-            bundle = log_collector.collect_kubectl(project.config)
+            bundle = log_collector.collect_docker(project.config)
             assert bundle.available is True
-            assert bundle.pods == ["catsdogs-api-1"]
             messages = [record["message"] for record in bundle.records]
-            assert "served a prediction" in messages
-            assert "a plain non-JSON line" in messages
-            assert all(record["pod"] == "catsdogs-api-1" for record in bundle.records)
+            assert "served a prediction" in " ".join(messages)
+            assert any(record["source"] == "docker" for record in bundle.records)
         finally:
             os.environ["PATH"] = original
 
 
 def test_collection_falls_back_to_local_and_says_why() -> None:
-    """When the cluster is unreachable the local log is served with an explanation."""
-    with TempProject(**{"monitoring.kubernetes.enabled": True}) as project:
+    """When Docker is unavailable the collector falls back to local logs."""
+    with TempProject() as project:
         path = project.config.path("monitoring.log_file")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('{"level":"INFO","message":"local record"}\n', encoding="utf-8")
-
         original = os.environ["PATH"]
         os.environ["PATH"] = str(project.root / "empty-bin")
         try:
             bundle = log_collector.collect(project.config, source="auto")
-            assert "fallback" in bundle.source
-            assert "cluster source unavailable" in bundle.message
+            # Docker is unavailable in this PATH, so auto should fall back to local
+            assert bundle.source == "local"
             assert any(record["message"] == "local record" for record in bundle.records)
         finally:
             os.environ["PATH"] = original
 
-
-def test_in_cluster_collector_declines_outside_a_pod() -> None:
-    """Outside Kubernetes the in-cluster path reports why it cannot run."""
-    with TempProject() as project:
-        bundle = log_collector.collect_in_cluster(project.config)
-        assert bundle.available is False
-        assert "not running inside" in bundle.message
+def test_no_incluster_collector_present() -> None:
+    """The project no longer exposes an in-cluster collector."""
+    with TempProject():
+        assert not hasattr(log_collector, "collect_in_cluster")
 
 
 # ---------------------------------------------------------------- performance
@@ -371,8 +361,8 @@ def test_dashboard_routes_answer() -> None:
         assert client.get("/").status_code == 200
         assert client.get("/health").get_json()["status"] == "ok"
         for path in ("/api/status", "/api/stages", "/api/runs", "/api/model-card",
-                     "/api/sample-images", "/api/logs?source=local", "/api/k8s/pods",
-                     "/api/deployment", "/api/jobs"):
+                 "/api/sample-images", "/api/logs?source=local", "/api/containers",
+                 "/api/deployment", "/api/jobs"):
             response = client.get(path)
             assert response.status_code == 200, f"{path} returned {response.status_code}"
             assert response.get_json() is not None

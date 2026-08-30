@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1788018061456
+current_stage: None
+description: null
+last_updated_timestamp: 1788018061456
+name: catsdogs-classifier
+run_id: 8c49ba99c35b4ea1a005091cbc3a9684
+run_link: null
+source: file:///Users/naveendeswal/Documents/BITS PILANI/Semester 3/Mlops/Assignment2/github/mlops-catsdogs/mlruns/753744129498706703/8c49ba99c35b4ea1a005091cbc3a9684/artifacts/model
+status: READY
+status_message: null
+storage_location: file:///Users/naveendeswal/Documents/BITS PILANI/Semester 3/Mlops/Assignment2/github/mlops-catsdogs/mlruns/753744129498706703/8c49ba99c35b4ea1a005091cbc3a9684/artifacts/model
+user_id: null
+version: 12

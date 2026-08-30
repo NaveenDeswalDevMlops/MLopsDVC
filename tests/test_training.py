@@ -139,10 +139,9 @@ def test_tracker_marks_a_failed_run_as_failed() -> None:
 
 def test_missing_artifacts_do_not_break_a_run() -> None:
     """Logging a file that does not exist warns rather than raising."""
-    with TempProject() as project:
-        with Tracker(project.config, run_name="missing", use_mlflow=False) as run:
-            run.log_artifact(project.root / "absent.png")
-            assert run.record.artifacts == []
+    with TempProject() as project, Tracker(project.config, run_name="missing", use_mlflow=False) as run:
+        run.log_artifact(project.root / "absent.png")
+        assert run.record.artifacts == []
 
 
 def test_runs_are_listed_newest_first() -> None:

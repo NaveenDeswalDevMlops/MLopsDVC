@@ -255,20 +255,18 @@
           <select id="log-source">
             <option value="auto">auto</option>
             <option value="local">local files</option>
-            <option value="kubectl">minikube (kubectl)</option>
-            <option value="in-cluster">in-cluster API</option>
+            <option value="docker">docker containers</option>
           </select>
         </label>
         <button class="btn" id="btn-logs" type="button">Fetch logs</button>
-        <button class="btn" id="btn-collect-k8s" type="button">Collect &amp; archive cluster logs</button>
       </div>
 
       <pre class="console" id="metrics-raw" hidden></pre>
 
       <div class="card">
-        <h3>Pods <span class="tag" id="pods-source">—</span></h3>
-        <table class="table" id="pods-table">
-          <thead><tr><th>Pod</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>Node</th><th>Image</th></tr></thead>
+        <h3>Containers <span class="tag" id="containers-source">—</span></h3>
+        <table class="table" id="containers-table">
+          <thead><tr><th>Container</th><th>Status</th><th>Image</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -321,12 +319,10 @@
     <section class="panel" id="panel-deployment">
       <div class="panel-head">
         <h2>Deployment</h2>
-        <span class="panel-note">M3 &amp; M4 — image build, CI/CD workflows, minikube manifests</span>
+        <span class="panel-note">M3 &amp; M4 — image build, CI/CD workflows, docker compose manifests</span>
       </div>
       <div class="split">
         <div class="card">
-          <h3>Kubernetes manifests</h3>
-          <ul class="chip-list" id="k8s-list"></ul>
           <h3>CI/CD workflows</h3>
           <ul class="chip-list" id="workflow-list"></ul>
           <h3>Docker</h3>
@@ -338,14 +334,21 @@
         </div>
       </div>
       <div class="card">
-        <h3>Deploy to minikube</h3>
-        <pre class="console">make docker-build      # build the image with the trained model baked in
-make minikube-up       # start the cluster and create the namespace
-make k8s-deploy        # load the image, apply the manifests, wait for rollout
-make k8s-urls          # print the API and dashboard URLs
-make k8s-smoke         # health + prediction against the deployed service</pre>
-        <p class="hint">The dashboard deployed inside the cluster reads pod logs through the
-        Kubernetes API using its own service account, so the log panel above keeps working there.</p>
+        <h3>Deploy to Docker</h3>
+        <pre class="console">make docker-build: ## Build the image with the trained model baked in
+	@test -f artifacts/model.pkl || (echo "No artifacts/model.pkl — run 'make pipeline' first." && exit 1)
+	docker build -f docker/Dockerfile -t $(IMAGE):$(TAG) .
+
+docker-run: ## Run the API and dashboard from the built image
+	docker run --rm -p $(API_PORT):8000 -p $(UI_PORT):8501 --name catsdogs $(IMAGE):$(TAG)
+
+compose-up: ## Start the API, dashboard and Prometheus with Compose
+	docker compose -f docker/docker-compose.yml up --build -d
+
+compose-down: ## Stop the Compose stack
+	docker compose -f docker/docker-compose.yml down -v</pre>
+        <p class="hint">The dashboard deployed inside the cluster reads container logs through the
+        docker API , so the log panel above keeps working there.</p>
       </div>
     </section>
   </main>

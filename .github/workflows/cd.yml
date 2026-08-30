@@ -1,221 +1,143 @@
-name: CD (Deploy on macbook)
+name: CD (Deploy on MacBook Docker Desktop)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "docker/**"
-      - "configs/**"
-      - ".github/workflows/cd.yml"
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to deploy"
+        description: "GHCR image tag to deploy"
+        required: true
         type: string
-        default: local
+        default: "latest"
   workflow_run:
     workflows: ["CI"]
-    types:
-      - completed
+    types: [completed]
 
 concurrency:
-  # One deployment at a time; a superseded run is cancelled rather than racing.
-  group: cd-${{ github.ref }}
+  group: cd-main
   cancel-in-progress: true
 
 env:
-  IMAGE: mlops-catsdogs
-  TAG: ${{ github.event.inputs.image_tag || 'local' }}
-  NAMESPACE: mlops
-  PYTHON_VERSION: "3.11"
+  IMAGE_NAME: mlops-catsdogs
 
 permissions:
   contents: read
-  packages: write
+  packages: read
 
 jobs:
-  deploy:
-    name: Deploy with Docker Compose
-    # Run on pushes and when triggered by the CI workflow completing successfully.
-    # Manual `workflow_dispatch` should instead be handled by the self-hosted job.
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.name == 'CI') }}
-    runs-on: ubuntu-latest
+  deploy-to-macbook:
+    name: Deploy to MacBook Docker Desktop
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+        github.event_name == 'workflow_dispatch'
+      }}
+    runs-on: [self-hosted, macOS]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: requirements.txt
-
-      - name: Determine image to deploy
-        id: image
-        run: |
-          echo "GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
-          # Lowercase the repository owner and repo name to satisfy Docker reference rules.
-          OWNER="${{ github.repository_owner }}"
-          OWNER_LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          REPO="${{ github.event.repository.name }}"
-          REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
-
-          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
-            # Inspect the workflow_run payload to see which event triggered CI
-            # (push vs pull_request). Only attempt to pull the CI-built image
-            # for push events; for PRs the CI job usually won't push the image.
-            if command -v jq >/dev/null 2>&1 && [ -f "$GITHUB_EVENT_PATH" ]; then
-              CI_EVENT=$(jq -r '.workflow_run.event // ""' "$GITHUB_EVENT_PATH")
-            else
-              CI_EVENT=""
-            fi
-            echo "CI workflow event: $CI_EVENT"
-            if [ "$CI_EVENT" = "push" ]; then
-              TAG=sha-${{ github.event.workflow_run.head_sha }}
-              echo "Triggered by CI push run; using image tag $TAG"
-            else
-              TAG=local
-              echo "Triggered by CI run from $CI_EVENT; falling back to local tag"
-            fi
-          elif [ -n "${{ github.event.inputs.image_tag || '' }}" ]; then
-            TAG=${{ github.event.inputs.image_tag }}
-            echo "Using requested image tag $TAG"
-          else
-            TAG=local
-            echo "No image tag requested; using local"
-          fi
-
-          echo "TAG=$TAG" >> $GITHUB_ENV
-          echo "OWNER_LOWER=$OWNER_LOWER" >> $GITHUB_ENV
-          echo "IMAGE=ghcr.io/$OWNER_LOWER/$REPO_LOWER:$TAG" >> $GITHUB_ENV
-          # Export whether we're using a local tag so later steps can conditionally build
-          if [ "$TAG" = "local" ]; then
-            echo "is_local=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_local=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Pull image (if not local) and run with Docker Compose
+      - name: Determine image tag
+        shell: bash
         run: |
           set -euo pipefail
-          echo "IMAGE=$IMAGE" ; echo "TAG=$TAG"
-          if [ "$TAG" != "local" ]; then
-            if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
-              echo "Logging into ghcr.io"
-              echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "$OWNER_LOWER" --password-stdin || true
-            fi
-            echo "Pulling $IMAGE"
-            docker pull "$IMAGE"
-            echo "Using pulled image; starting compose without build"
-            docker compose -f docker/docker-compose.yml down --remove-orphans || true
-            IMAGE="$IMAGE" docker compose -f docker/docker-compose.yml up -d --no-build --remove-orphans
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
+            TAG="sha-${{ github.event.workflow_run.head_sha }}"
           else
-            echo "Local tag requested; starting compose (may build)"
-            docker compose -f docker/docker-compose.yml up -d --build
+            TAG="${{ github.event.inputs.image_tag }}"
           fi
+          OWNER_LOWER=$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          REPO_LOWER=$(printf '%s' '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "IMAGE=ghcr.io/${OWNER_LOWER}/${REPO_LOWER}:${TAG}" >> "$GITHUB_ENV"
+          echo "Deploying ghcr.io/${OWNER_LOWER}/${REPO_LOWER}:${TAG}"
 
-          echo "Rendered service images:"
-          IMAGE="$IMAGE" docker compose -f docker/docker-compose.yml config --images
-          echo "Container status:"
-          IMAGE="$IMAGE" docker compose -f docker/docker-compose.yml ps -a
+      - name: Verify MacBook Docker Desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Runner: $(hostname)"
+          echo "Working directory: $PWD"
+          docker version
+          docker compose version
 
+      - name: Log in to GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+            --username '${{ github.repository_owner }}' \
+            --password-stdin
+
+      - name: Pull exact CI image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+
+      - name: Deploy with Docker Compose
+        shell: bash
+        env:
+          DEPLOY_DIR: ${{ secrets.NAVEEN_COMPOSE_DIR }}
+        run: |
+          set -euo pipefail
+          DEPLOY_DIR="${DEPLOY_DIR:-$HOME/mlops-catsdogs}"
+          echo "Deploy directory: $DEPLOY_DIR"
+          test -d "$DEPLOY_DIR"
+          cd "$DEPLOY_DIR"
+
+          # Compose must use the exact image built by CI.
+          export IMAGE="$IMAGE"
+          export TAG="$TAG"
+
+          docker compose -f docker/docker-compose.yml down --remove-orphans || true
+          docker compose -f docker/docker-compose.yml up -d --no-build --remove-orphans
+          docker compose -f docker/docker-compose.yml ps
+
+      - name: Wait for service health
+        shell: bash
+        run: |
+          set -euo pipefail
           bash scripts/wait_for.sh http://127.0.0.1:8000/health 120
 
-      - name: Smoke test the deployed service
+      - name: Smoke test deployed service
+        shell: bash
         run: |
+          set -euo pipefail
           bash scripts/smoke_test.sh http://127.0.0.1:8000
-          python -m mlops.cli perf-check --endpoint http://127.0.0.1:8000 --sample-size 40
 
-      - name: Collect compose logs
+      - name: Collect deployment logs
         if: always()
+        shell: bash
+        env:
+          DEPLOY_DIR: ${{ secrets.NAVEEN_COMPOSE_DIR }}
         run: |
-          mkdir -p deploy-logs
-          docker compose -f docker/docker-compose.yml ps -a > deploy-logs/ps.txt 2>&1 || true
-          docker compose -f docker/docker-compose.yml logs --no-color --tail=500 > deploy-logs/compose-logs.txt 2>&1 || true
-          docker inspect mlops-catsdogs-api-1 > deploy-logs/api-inspect.json 2>&1 || true
-          tail -40 deploy-logs/compose-logs.txt || true
+          set -euo pipefail
+          DEPLOY_DIR="${DEPLOY_DIR:-$HOME/mlops-catsdogs}"
+          mkdir -p "$GITHUB_WORKSPACE/deploy-logs"
+          cd "$DEPLOY_DIR" || true
+          docker compose -f docker/docker-compose.yml ps > "$GITHUB_WORKSPACE/deploy-logs/ps.txt" 2>&1 || true
+          docker compose -f docker/docker-compose.yml logs --no-color --tail=500 > "$GITHUB_WORKSPACE/deploy-logs/compose-logs.txt" 2>&1 || true
+          tail -40 "$GITHUB_WORKSPACE/deploy-logs/compose-logs.txt" || true
 
       - name: Upload deployment evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: deployment-evidence
-          path: |
-            deploy-logs/
-            artifacts/metrics/
+          name: macbook-deployment-evidence
+          path: deploy-logs/
           retention-days: 14
 
-  deploy-to-naveen-macbook-air:
-    name: Deploy to naveen-macbook-air (self-hosted)
-    runs-on: self-hosted
-    if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'CI' && github.event.workflow_run.conclusion == 'success') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != 'skip')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy on naveen-macbook-air (local runner)
-        run: |
-          set -euo pipefail
-          OWNER="${{ github.repository_owner }}"
-          OWNER_LOWER=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          REPO="${{ github.event.repository.name }}"
-          REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
-
-          # Determine tag: prefer CI's head_sha when triggered by workflow_run
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ] && [ -n "${{ github.event.workflow_run.head_sha }}" ]; then
-            TAG=sha-${{ github.event.workflow_run.head_sha }}
-            echo "Triggered by CI; using tag $TAG"
-          elif [ -n "${{ github.event.inputs.image_tag || '' }}" ]; then
-            TAG=${{ github.event.inputs.image_tag }}
-            echo "Using requested image tag $TAG"
-          else
-            TAG=local
-            echo "No image tag requested; using local"
-          fi
-
-          IMAGE=ghcr.io/$OWNER_LOWER/$REPO_LOWER:$TAG
-          echo "IMAGE=$IMAGE"
-
-          if [ -n "${{ secrets.GHCR_PAT || '' }}" ]; then
-            echo "Logging into ghcr.io"
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "$OWNER_LOWER" --password-stdin || true
-          fi
-
-          if [ "$TAG" != "local" ]; then
-            echo "Pulling $IMAGE"
-            docker pull "$IMAGE"
-            echo "Using pulled image"
-          else
-            echo "Local tag requested; ensure mlops-catsdogs:local exists on the runner"
-          fi
-
-          DEPLOY_DIR="${{ secrets.NAVEEN_COMPOSE_DIR }}"
-          if [ -z "$DEPLOY_DIR" ]; then
-            DEPLOY_DIR=~/mlops-catsdogs
-          fi
-          echo "Changing to $DEPLOY_DIR"
-          cd "$DEPLOY_DIR"
-          # The persistent deployment directory is separate from the Actions
-          # checkout. Use the Compose definition from this workflow revision.
-          cp "$GITHUB_WORKSPACE/docker/docker-compose.yml" docker/docker-compose.yml
-          echo "Updating compose stack"
-          IMAGE="$IMAGE" docker compose -f docker/docker-compose.yml down --remove-orphans || true
-          IMAGE="$IMAGE" docker compose -f docker/docker-compose.yml up -d --no-build --remove-orphans
-          IMAGE="$IMAGE" docker compose -f docker/docker-compose.yml config --images
-          IMAGE="$IMAGE" docker compose -f docker/docker-compose.yml ps -a
-
-      - name: Upload deploy log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: naveen-deploy-log
-          path: |
-            deploy-logs/
-          retention-days: 7
-
-# Notes: this job is intended to run on a self-hosted runner registered as
-# `naveen-macbook-air` (ensure the runner labels include `self-hosted` and that
-# the runner can reach GHCR). Repository secrets you may want to set:
-# - GHCR_PAT: Personal access token with `read:packages` (required if packages are private)
-# - NAVEEN_COMPOSE_DIR: path to the repository on the runner (defaults to ~/mlops-catsdogs)
+# MacBook prerequisites:
+# - GitHub Actions runner labels must include: self-hosted, macOS
+# - Docker Desktop must be running
+# - Runner user must be able to run docker/docker compose without sudo
+# - NAVEEN_COMPOSE_DIR should point to the checked-out repository on the MacBook
+#   (or omit it to use ~/mlops-catsdogs)
+# - GHCR_PAT is only needed if the GHCR package is private and GITHUB_TOKEN
+#   cannot read it; give it read:packages permission.
+# - docker/docker-compose.yml should use the IMAGE variable, e.g.:
+#     image: ${IMAGE:-mlops-catsdogs:local}
+#   and should not build the deployment service when CD uses --no-build.

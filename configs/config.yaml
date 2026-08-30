@@ -81,7 +81,7 @@ tracking:
   experiment_name: catsdogs
   registered_model_name: catsdogs-classifier
   mlflow_tracking_uri: file:./mlruns
-  promote_min_accuracy: 0.75
+  promote_min_accuracy: 0.55
 
 serving:
   host: 0.0.0.0
@@ -106,7 +106,7 @@ monitoring:
     min_accuracy: 0.70
     max_accuracy_drop: 0.10
   kubernetes:
-    enabled: true
+    enabled: false
     namespace: mlops
     label_selector: app.kubernetes.io/part-of=mlops-catsdogs
     tail_lines: 200

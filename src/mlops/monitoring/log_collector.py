@@ -1,21 +1,15 @@
 """Collect logs from wherever the service happens to be running.
 
-Three sources, one shape of output, chosen by where the dashboard itself is:
+Two sources are supported, producing the same record shape so the monitoring
+view renders a single merged stream:
 
-* **local** — the JSONL file the service writes. Used during development.
-* **kubectl** — ``kubectl logs`` against the minikube cluster. Used when the
-  dashboard runs on the developer's machine and the service runs in minikube.
-* **in-cluster** — the Kubernetes API over HTTPS using the pod's own service
-  account token. Used when the dashboard itself is a pod, where no ``kubectl``
-  binary exists.
+- **local** — the JSONL files the services write (development and fallback).
+- **docker** — read container status and logs using the `docker` CLI. Used when
+    the dashboard runs on the host and services are launched with Docker Compose
+    or plain Docker.
 
-The in-cluster path matters because the alternative — baking ``kubectl`` into the
-image — adds a 50 MB binary and a second authentication path to keep working. The
-service account token and CA certificate are already mounted in every pod, so the
-API call needs nothing extra beyond the RBAC Role in ``k8s/rbac.yaml``.
-
-Every collected line is normalised into the same record shape the local JSONL uses,
-so the monitoring view renders one merged stream regardless of source.
+The Docker approach avoids any Kubernetes dependencies in the dashboard image
+and keeps the UI usable when started from `docker compose` as provided.
 """
 
 from __future__ import annotations
@@ -25,7 +19,6 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from mlops.config import Config
@@ -33,8 +26,7 @@ from mlops.logging_setup import get_logger, read_jsonl_tail
 
 _LOGGER = get_logger(__name__)
 
-SERVICE_ACCOUNT_DIR = Path("/var/run/secrets/kubernetes.io/serviceaccount")
-KUBECTL_TIMEOUT = 60
+DOCKER_TIMEOUT = 60
 
 
 @dataclass
@@ -103,22 +95,9 @@ def _normalise(line: str, pod: str, source: str) -> dict[str, Any]:
     return record
 
 
-def in_cluster() -> bool:
-    """Report whether this process is running inside a Kubernetes pod.
-
-    Returns:
-        ``True`` when the service account token is mounted.
-    """
-    return (SERVICE_ACCOUNT_DIR / "token").is_file()
-
-
-def kubectl_available() -> bool:
-    """Report whether a ``kubectl`` binary is on PATH.
-
-    Returns:
-        ``True`` when kubectl can be executed.
-    """
-    return shutil.which("kubectl") is not None
+def docker_available() -> bool:
+    """Return True when a `docker` binary is available on PATH."""
+    return shutil.which("docker") is not None
 
 
 def collect_local(config: Config, limit: int | None = None) -> LogBundle:
@@ -153,288 +132,150 @@ def collect_local(config: Config, limit: int | None = None) -> LogBundle:
     )
 
 
-def _run_kubectl(config: Config, args: list[str]) -> subprocess.CompletedProcess[str] | None:
-    """Run a kubectl subcommand.
+# kubectl-based collectors and in-cluster collection were removed: this module
+# provides Docker and local-file collectors only.
 
-    Args:
-        config: Effective configuration.
-        args: Arguments after the kubectl binary.
 
-    Returns:
-        The completed process, or ``None`` when kubectl is unavailable or failed
-        to launch.
+def list_containers(config: Config) -> dict[str, Any]:
+    """List containers visible to the host Docker daemon.
+
+    Returns a mapping similar to the former pod listing so the UI can render it.
     """
-    binary = str(config.get("monitoring.kubernetes.kubectl_binary", "kubectl"))
-    context = str(config.get("monitoring.kubernetes.context", "") or "")
-    command = [binary]
-    if context:
-        command += ["--context", context]
-    command += args
+    if not docker_available():
+        return {"source": "none", "containers": [], "error": "docker not available"}
+
     try:
-        return subprocess.run(
-            command, capture_output=True, text=True, timeout=KUBECTL_TIMEOUT, check=False
+        completed = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}||{{.Image}}||{{.Status}}"],
+            capture_output=True,
+            text=True,
+            timeout=DOCKER_TIMEOUT,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        _LOGGER.warning("kubectl failed to run", extra={"error": str(exc)})
-        return None
+        _LOGGER.warning("docker ps failed", extra={"error": str(exc)})
+        return {"source": "docker", "containers": [], "error": str(exc)}
+
+    if completed.returncode != 0:
+        return {"source": "docker", "containers": [], "error": completed.stderr.strip()}
+
+    containers: list[dict[str, Any]] = []
+    for line in completed.stdout.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("||")
+        name = parts[0] if parts else "?"
+        image = parts[1] if len(parts) > 1 else ""
+        status = parts[2] if len(parts) > 2 else ""
+        containers.append({"name": name, "image": image, "status": status})
+    return {"source": "docker", "containers": containers}
 
 
-def list_pods_kubectl(config: Config) -> list[dict[str, Any]]:
-    """List the deployment's pods via kubectl.
-
-    Args:
-        config: Effective configuration.
-
-    Returns:
-        Pod summaries; empty when the cluster cannot be reached.
-    """
-    namespace = str(config.get("monitoring.kubernetes.namespace", "mlops"))
-    selector = str(config.get("monitoring.kubernetes.label_selector", ""))
-    args = ["get", "pods", "-n", namespace, "-o", "json"]
-    if selector:
-        args += ["-l", selector]
-    completed = _run_kubectl(config, args)
-    if completed is None or completed.returncode != 0:
-        return []
-    try:
-        document = json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        return []
-    return [_pod_summary(item) for item in document.get("items", [])]
-
-
-def _pod_summary(item: dict[str, Any]) -> dict[str, Any]:
-    """Reduce a Kubernetes pod object to the fields the dashboard shows.
-
-    Args:
-        item: A pod object from the API.
-
-    Returns:
-        Name, phase, readiness, restart count, node and start time.
-    """
-    status = item.get("status", {})
-    containers = status.get("containerStatuses", []) or []
+def _normalise_container_summary(name: str, image: str, status: str) -> dict[str, Any]:
+    """Create a lightweight container summary for the UI."""
     return {
-        "name": item.get("metadata", {}).get("name", "?"),
-        "phase": status.get("phase", "?"),
-        "ready": all(container.get("ready") for container in containers) if containers else False,
-        "restarts": sum(int(container.get("restartCount", 0)) for container in containers),
-        "node": item.get("spec", {}).get("nodeName", ""),
-        "started_at": status.get("startTime", ""),
-        "image": containers[0].get("image", "") if containers else "",
+        "name": name,
+        "image": image,
+        "status": status,
     }
 
 
-def collect_kubectl(config: Config, tail: int | None = None) -> LogBundle:
-    """Collect pod logs from minikube using kubectl.
+def collect_docker(config: Config, tail: int | None = None) -> LogBundle:
+    """Collect logs from containers visible to the local Docker daemon.
 
-    Args:
-        config: Effective configuration.
-        tail: Lines per pod.
-
-    Returns:
-        The collected bundle. A missing binary or unreachable cluster is reported
-        in ``message`` rather than raised, so the dashboard stays usable.
+    The function lists containers and reads the last `tail` lines from each via
+    `docker logs`. When Docker is unavailable a descriptive bundle is returned
+    rather than raising so the dashboard remains usable.
     """
-    namespace = str(config.get("monitoring.kubernetes.namespace", "mlops"))
-    lines = int(tail or config.get("monitoring.kubernetes.tail_lines", 200))
+    lines = int(tail or config.get("monitoring.log_tail_lines", 200))
 
-    if not kubectl_available():
+    if not docker_available():
         return LogBundle(
-            source="kubectl",
+            source="docker",
             collected_at=_now(),
             available=False,
-            message="kubectl is not on PATH. Install it, or deploy the dashboard "
-            "into the cluster where the in-cluster collector is used instead.",
+            message="docker is not on PATH. Start the services with Docker Compose.",
         )
 
-    pods = list_pods_kubectl(config)
-    if not pods:
+    listing = list_containers(config)
+    containers = listing.get("containers", [])
+    if not containers:
         return LogBundle(
-            source="kubectl",
+            source="docker",
             collected_at=_now(),
             available=False,
-            message=f"no pods found in namespace {namespace!r}. Run `make k8s-deploy` "
-            "and check that minikube is running.",
+            message="no running containers were found",
         )
 
     records: list[dict[str, Any]] = []
-    for pod in pods:
-        completed = _run_kubectl(
-            config,
-            ["logs", pod["name"], "-n", namespace, f"--tail={lines}", "--all-containers=true"],
-        )
-        if completed is None or completed.returncode != 0:
-            detail = completed.stderr.strip() if completed else "kubectl could not be executed"
+    names = []
+    for c in containers:
+        name = c.get("name")
+        names.append(name)
+        try:
+            completed = subprocess.run(
+                ["docker", "logs", "--tail", str(lines), name],
+                capture_output=True,
+                text=True,
+                timeout=DOCKER_TIMEOUT,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
             records.append(
                 {
                     "ts": _now(),
                     "level": "WARNING",
                     "logger": "log_collector",
-                    "message": f"could not read logs for {pod['name']}: {detail}",
-                    "pod": pod["name"],
-                    "source": "kubectl",
+                    "message": f"could not read logs for {name}: {exc}",
+                    "pod": name,
+                    "source": "docker",
                 }
             )
             continue
+
+        if completed.returncode != 0:
+            detail = completed.stderr.strip()
+            records.append(
+                {
+                    "ts": _now(),
+                    "level": "WARNING",
+                    "logger": "log_collector",
+                    "message": f"docker logs for {name} failed: {detail}",
+                    "pod": name,
+                    "source": "docker",
+                }
+            )
+            continue
+
         for line in completed.stdout.splitlines():
-            record = _normalise(line, pod["name"], "kubectl")
+            record = _normalise(line, name, "docker")
             if record:
                 records.append(record)
 
     records.sort(key=lambda item: str(item.get("ts", "")))
     return LogBundle(
-        source="kubectl",
+        source="docker",
         collected_at=_now(),
         records=records,
-        pods=[pod["name"] for pod in pods],
+        pods=names,
         available=True,
-        message=f"{len(records)} lines from {len(pods)} pod(s) in namespace {namespace!r}",
+        message=f"{len(records)} lines from {len(containers)} container(s)",
     )
 
 
-def _api_request(path: str, params: dict[str, str] | None = None) -> tuple[int, str]:
-    """Call the Kubernetes API using the pod's own service account.
-
-    Args:
-        path: API path beginning with ``/api``.
-        params: Optional query parameters.
-
-    Returns:
-        Tuple of HTTP status and response text. Status ``0`` means the call could
-        not be made at all.
-    """
-    import os
-
-    import requests
-
-    token_file = SERVICE_ACCOUNT_DIR / "token"
-    ca_file = SERVICE_ACCOUNT_DIR / "ca.crt"
-    if not token_file.is_file():
-        return 0, "no service account token is mounted"
-
-    host = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
-    port = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
-    url = f"https://{host}:{port}{path}"
-    try:
-        response = requests.get(
-            url,
-            headers={"Authorization": f"Bearer {token_file.read_text().strip()}"},
-            verify=str(ca_file) if ca_file.is_file() else False,
-            params=params or {},
-            timeout=20,
-        )
-    except Exception as exc:  # noqa: BLE001 - any transport failure is reportable
-        return 0, str(exc)
-    return response.status_code, response.text
-
-
-def collect_in_cluster(config: Config, tail: int | None = None) -> LogBundle:
-    """Collect pod logs through the Kubernetes API from inside the cluster.
-
-    Args:
-        config: Effective configuration.
-        tail: Lines per pod.
-
-    Returns:
-        The collected bundle.
-    """
-    namespace = str(config.get("monitoring.kubernetes.namespace", "mlops"))
-    selector = str(config.get("monitoring.kubernetes.label_selector", ""))
-    lines = int(tail or config.get("monitoring.kubernetes.tail_lines", 200))
-
-    if not in_cluster():
-        return LogBundle(
-            source="in-cluster",
-            collected_at=_now(),
-            available=False,
-            message="not running inside a Kubernetes pod",
-        )
-
-    status, body = _api_request(
-        f"/api/v1/namespaces/{namespace}/pods",
-        {"labelSelector": selector} if selector else None,
-    )
-    if status != 200:
-        return LogBundle(
-            source="in-cluster",
-            collected_at=_now(),
-            available=False,
-            message=f"pod list failed with status {status}: {body[:400]}. "
-            "Check that k8s/rbac.yaml is applied.",
-        )
-    try:
-        pods = [_pod_summary(item) for item in json.loads(body).get("items", [])]
-    except json.JSONDecodeError as exc:
-        return LogBundle(
-            source="in-cluster",
-            collected_at=_now(),
-            available=False,
-            message=f"pod list was not JSON: {exc}",
-        )
-
-    records: list[dict[str, Any]] = []
-    for pod in pods:
-        log_status, log_body = _api_request(
-            f"/api/v1/namespaces/{namespace}/pods/{pod['name']}/log",
-            {"tailLines": str(lines)},
-        )
-        if log_status != 200:
-            records.append(
-                {
-                    "ts": _now(),
-                    "level": "WARNING",
-                    "logger": "log_collector",
-                    "message": f"log read for {pod['name']} returned {log_status}",
-                    "pod": pod["name"],
-                    "source": "in-cluster",
-                }
-            )
-            continue
-        for line in log_body.splitlines():
-            record = _normalise(line, pod["name"], "in-cluster")
-            if record:
-                records.append(record)
-
-    records.sort(key=lambda item: str(item.get("ts", "")))
-    return LogBundle(
-        source="in-cluster",
-        collected_at=_now(),
-        records=records,
-        pods=[pod["name"] for pod in pods],
-        available=True,
-        message=f"{len(records)} lines from {len(pods)} pod(s) via the Kubernetes API",
-    )
+# Kubernetes in-cluster collection and API access were removed in favour of
+# a Docker-only dashboard. The functions above implement local file and
+# docker-based collection paths.
 
 
 def list_pods(config: Config) -> dict[str, Any]:
-    """List pods using whichever access path is available.
+    """Return the container listing under the old key name for views.
 
-    Args:
-        config: Effective configuration.
-
-    Returns:
-        Mapping with the chosen source and the pod summaries.
+    This helper keeps the view code straightforward: it returns a mapping with
+    keys similar to the original pod listing but sourced from Docker.
     """
-    if in_cluster():
-        namespace = str(config.get("monitoring.kubernetes.namespace", "mlops"))
-        selector = str(config.get("monitoring.kubernetes.label_selector", ""))
-        status, body = _api_request(
-            f"/api/v1/namespaces/{namespace}/pods",
-            {"labelSelector": selector} if selector else None,
-        )
-        if status == 200:
-            try:
-                return {
-                    "source": "in-cluster",
-                    "pods": [_pod_summary(item) for item in json.loads(body).get("items", [])],
-                }
-            except json.JSONDecodeError:
-                pass
-        return {"source": "in-cluster", "pods": [], "error": f"status {status}"}
-    if kubectl_available():
-        return {"source": "kubectl", "pods": list_pods_kubectl(config)}
-    return {"source": "none", "pods": [], "error": "kubectl is not installed and this is not a pod"}
+    listing = list_containers(config)
+    return {"source": listing.get("source", "docker"), "pods": listing.get("containers", []), "error": listing.get("error")}
 
 
 def collect(config: Config, source: str = "auto", tail: int | None = None) -> LogBundle:
@@ -442,41 +283,37 @@ def collect(config: Config, source: str = "auto", tail: int | None = None) -> Lo
 
     Args:
         config: Effective configuration.
-        source: ``auto``, ``local``, ``kubectl`` or ``in-cluster``.
+        source: ``auto``, ``local`` or ``docker``.
         tail: Lines to fetch per pod or file.
 
     Returns:
-        The collected bundle. ``auto`` prefers the cluster and falls back to the
-        local file, merging the fallback message so the dashboard can explain why.
+        The collected bundle. ``auto`` prefers Docker and falls back to local
+        files so the dashboard can explain why.
     """
     requested = source.lower()
     if requested == "local":
         return collect_local(config, tail)
-    if requested == "kubectl":
-        return collect_kubectl(config, tail)
-    if requested == "in-cluster":
-        return collect_in_cluster(config, tail)
+    if requested == "docker":
+        return collect_docker(config, tail)
 
-    if not bool(config.get("monitoring.kubernetes.enabled", True)):
-        return collect_local(config, tail)
+    # auto: prefer Docker then local. Kubernetes collection hooks were removed
+    # in favour of a Compose/Docker-first dashboard.
 
-    cluster = collect_in_cluster(config, tail) if in_cluster() else collect_kubectl(config, tail)
-    if cluster.available and cluster.records:
-        return cluster
+    # non-kubernetes flow: prefer Docker, otherwise local
+    if docker_available():
+        docker = collect_docker(config, tail)
+        if docker.available and docker.records:
+            return docker
+        # fall through to local
     local = collect_local(config, tail)
-    local.message = f"{local.message} (cluster source unavailable: {cluster.message})"
-    local.source = "local (fallback)"
     return local
 
 
 __all__ = [
     "LogBundle",
     "collect",
-    "collect_in_cluster",
-    "collect_kubectl",
+    "collect_docker",
     "collect_local",
-    "in_cluster",
-    "kubectl_available",
+    "docker_available",
     "list_pods",
-    "list_pods_kubectl",
 ]

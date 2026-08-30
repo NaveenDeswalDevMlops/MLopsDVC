@@ -17,15 +17,17 @@ and an unreproducible run.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
 import traceback
 import uuid
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 from mlops.logging_setup import JsonFormatter, get_logger
 
@@ -104,10 +106,8 @@ class _JobLogHandler(logging.Handler):
         Args:
             record: The record to capture.
         """
-        try:
+        with contextlib.suppress(Exception):  # a logging failure must not kill the job
             self._job.logs.append(self.format(record))
-        except Exception:  # noqa: BLE001 - a logging failure must not kill the job
-            pass
 
 
 class JobRunner:

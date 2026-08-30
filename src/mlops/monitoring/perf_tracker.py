@@ -24,10 +24,11 @@ from __future__ import annotations
 import json
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -285,13 +286,13 @@ def run(
 
     predictions = (probabilities_array >= threshold).astype(int)
     confusion = [[0, 0], [0, 0]]
-    for truth, prediction in zip(labels.tolist(), predictions.tolist()):
+    for truth, prediction in zip(labels.tolist(), predictions.tolist(), strict=False):
         confusion[truth][prediction] += 1
 
     baseline_metrics = {
         key: float(value)
         for key, value in (baseline.get("metrics") or {}).items()
-        if isinstance(value, (int, float))
+        if isinstance(value, int | float)
     }
     deltas = {
         key: round(metrics[key] - baseline_metrics[key], 6)
