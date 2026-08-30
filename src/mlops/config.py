@@ -105,7 +105,7 @@ def _env_overrides() -> dict[str, Any]:
         cursor = overrides
         for part in path[:-1]:
             cursor = cursor.setdefault(part, {})
-            if not isinstance(cursor, dict):  # pragma: no cover - defensive
+            if not isinstance(cursor, dict):
                 break
         if isinstance(cursor, dict):
             cursor[path[-1]] = _coerce(value)
@@ -114,26 +114,13 @@ def _env_overrides() -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Config:
-    """Effective configuration.
-
-    Attributes:
-        raw: The merged configuration document.
-        root: Project root used to resolve every relative path.
-    """
+    """Effective configuration."""
 
     raw: dict[str, Any] = field(default_factory=dict)
     root: Path = field(default_factory=project_root)
 
     def get(self, dotted: str, default: Any = None) -> Any:
-        """Read a value by dotted path.
-
-        Args:
-            dotted: Path such as ``training.epochs``.
-            default: Returned when the path is absent.
-
-        Returns:
-            The configured value or ``default``.
-        """
+        """Read a value by dotted path."""
         cursor: Any = self.raw
         for part in dotted.split("."):
             if not isinstance(cursor, dict) or part not in cursor:
@@ -142,17 +129,7 @@ class Config:
         return cursor
 
     def path(self, dotted: str) -> Path:
-        """Read a configured path and resolve it against the project root.
-
-        Args:
-            dotted: Path such as ``paths.model_path``.
-
-        Returns:
-            An absolute path.
-
-        Raises:
-            KeyError: If the key is not configured.
-        """
+        """Read a configured path and resolve it against the project root."""
         value = self.get(dotted)
         if value is None:
             raise KeyError(f"path {dotted!r} is not configured")
@@ -160,11 +137,7 @@ class Config:
         return candidate if candidate.is_absolute() else (self.root / candidate).resolve()
 
     def flat_params(self) -> dict[str, str]:
-        """Flatten the whole document for experiment tracking.
-
-        Returns:
-            Dotted-key to stringified-value mapping.
-        """
+        """Flatten the whole document for experiment tracking."""
         flat: dict[str, str] = {}
 
         def walk(node: Any, prefix: str) -> None:
@@ -178,11 +151,13 @@ class Config:
         return flat
 
     def ensure_dirs(self) -> None:
-        """Create every directory the pipeline writes into."""
+        """Create directories required by pipeline and runtime components.
+
+        Dataset directories are intentionally excluded because serving containers
+        may mount ``/app/data`` read-only. Data-producing commands create their
+        required directories as part of their own workflow.
+        """
         for key in (
-            "paths.data_root",
-            "paths.raw_dir",
-            "paths.processed_dir",
             "paths.artifacts_dir",
             "paths.metrics_dir",
             "paths.plots_dir",
@@ -204,17 +179,7 @@ class Config:
 
 
 def load_config(config_path: Path | str | None = None) -> Config:
-    """Load configuration from YAML and environment.
-
-    Args:
-        config_path: Optional explicit path to the YAML file.
-
-    Returns:
-        The effective configuration.
-
-    Raises:
-        FileNotFoundError: If the YAML file does not exist.
-    """
+    """Load configuration from YAML and environment."""
     root = project_root()
     path = Path(config_path) if config_path else Path(
         os.environ.get("MLOPS_CONFIG_FILE", root / "configs" / "config.yaml")
@@ -230,11 +195,7 @@ def load_config(config_path: Path | str | None = None) -> Config:
 
 @lru_cache(maxsize=1)
 def get_config() -> Config:
-    """Return a process-wide cached configuration.
-
-    Returns:
-        The effective configuration.
-    """
+    """Return a process-wide cached configuration."""
     return load_config()
 
 
