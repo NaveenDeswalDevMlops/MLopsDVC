@@ -13,14 +13,41 @@ ARCHIVE="$TMP/catsvsdogs.zip"
 DATASET_URL="https://www.kaggle.com/api/v1/datasets/download/shaunthesheep/microsoft-catsvsdogs-dataset"
 
 mkdir -p "$TMP" "$RAW/cat" "$RAW/dog"
-rm -rf "$RAW/cat"/* "$RAW/dog"/*
+# Remove previous contents without globbing (avoid "Argument list too long")
+rm -rf "$RAW/cat" "$RAW/dog"
+mkdir -p "$RAW/cat" "$RAW/dog"
 
 echo "downloading public Kaggle dataset..."
 curl -fL --retry 3 --retry-delay 2 "$DATASET_URL" -o "$ARCHIVE"
 unzip -q -o "$ARCHIVE" -d "$TMP/extracted"
 
-find "$TMP/extracted" -type d -iname 'cat' -exec sh -c 'cp "$1"/*.jpg "$2"/ 2>/dev/null || true' _ {} "$RAW/cat" \;
-find "$TMP/extracted" -type d -iname 'dog' -exec sh -c 'cp "$1"/*.jpg "$2"/ 2>/dev/null || true' _ {} "$RAW/dog" \;
+# Copy individual jpg files to avoid "Argument list too long" errors
+echo "copying cat images..."
+find "$TMP/extracted" -type f -iname '*.jpg' -path '*/[Cc]at/*' -print0 2>/dev/null \
+	| while IFS= read -r -d '' src; do
+		cp "$src" "$RAW/cat/" || true
+	done
+
+echo "copying dog images..."
+find "$TMP/extracted" -type f -iname '*.jpg' -path '*/[Dd]og/*' -print0 2>/dev/null \
+	| while IFS= read -r -d '' src; do
+		cp "$src" "$RAW/dog/" || true
+	done
+
+# Also handle common PetImages layout explicitly (redundant but safe)
+if [ -d "$TMP/extracted/PetImages/Cat" ]; then
+	find "$TMP/extracted/PetImages/Cat" -type f -iname '*.jpg' -print0 | while IFS= read -r -d '' src; do
+		cp "$src" "$RAW/cat/" || true
+	done
+fi
+if [ -d "$TMP/extracted/PetImages/Dog" ]; then
+	find "$TMP/extracted/PetImages/Dog" -type f -iname '*.jpg' -print0 | while IFS= read -r -d '' src; do
+		cp "$src" "$RAW/dog/" || true
+	done
+fi
+
+echo "copied $(find "$RAW/cat" -type f | wc -l | tr -d ' ') cat images"
+echo "copied $(find "$RAW/dog" -type f | wc -l | tr -d ' ') dog images"
 
 rm -rf "$TMP"
 
